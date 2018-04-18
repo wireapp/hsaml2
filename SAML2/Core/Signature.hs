@@ -68,5 +68,5 @@ verifySAMLProtocol' pubkeys x = do
   case v of
     Left e             -> fail $ "signature verification failed: " ++ show e
     Right Nothing      -> fail "signature verification failed: no matching key/alg pair."
-    Right (Just False) -> fail "signature verification failed: verification failed."
+    Right (Just False) -> fail "signature verification failed: invalid signature."
     Right (Just True)  -> pure m
