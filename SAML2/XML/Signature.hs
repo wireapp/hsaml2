@@ -1,4 +1,9 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase       #-}
+{-# LANGUAGE RankNTypes       #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -- |
 -- XML Signature Syntax and Processing
 --
@@ -16,7 +21,9 @@ module SAML2.XML.Signature
   ) where
 
 import Control.Applicative ((<|>))
+import Control.Exception (SomeException, try)
 import Control.Monad (guard, (<=<))
+import Control.Monad.Except
 import Crypto.Number.Basic (numBytes)
 import Crypto.Number.Serialize (i2ospOf_, os2ip)
 import Crypto.Hash (hashlazy, SHA1(..), SHA256(..), SHA512(..), RIPEMD160(..))
@@ -28,7 +35,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Maybe (isJust)
+import Data.Either (isRight)
 import Data.Monoid ((<>))
 import qualified Data.X509 as X509
 import Network.URI (URI(..))
@@ -86,13 +93,17 @@ generateReference r x = do
   return r
     { referenceDigestValue = d }
 
-verifyReference :: Reference -> HXT.XmlTree -> IO (Maybe String)
+verifyReference :: Reference -> HXT.XmlTree -> IO (Either String String)
 verifyReference r doc = case referenceURI r of
-  Just URI{ uriScheme = "", uriAuthority = Nothing, uriPath = "", uriQuery = "", uriFragment = '#':xid }
-    | x@[_] <- HXT.runLA (getID xid) doc -> do
-    t <- applyTransforms (referenceTransforms r) $ DOM.mkRoot [] x
-    return $ xid <$ guard (applyDigest (referenceDigestMethod r) t == referenceDigestValue r)
-  _ -> return Nothing
+  Just URI{ uriScheme = "", uriAuthority = Nothing, uriPath = "", uriQuery = "", uriFragment = '#':xid } ->
+    case HXT.runLA (getID xid) doc of
+      x@[_] -> do
+        t <- applyTransforms (referenceTransforms r) $ DOM.mkRoot [] x
+        return $ if (applyDigest (referenceDigestMethod r) t == referenceDigestValue r)
+          then Right xid
+          else Left "digest mismatch"
+      bad -> return . Left $ "reference has " <> show (length bad) <> " matches, should have 1."
+  bad -> return . Left $ "bad referenceURI: " <> show bad
 
 data SigningKey
   = SigningKeyDSA DSA.KeyPair
@@ -180,12 +191,14 @@ generateSignature sk si = do
     , signatureObject = []
     }
 
+-- deprecated!  use 'verifySignature' instead.  this is left here so it can be used for testing only.
+--
 -- Exception in IO:  something is syntactically wrong with the input
 -- Nothing:          no matching key/alg pairs found
 -- Just False:       signature verification failed || dangling refs || explicit ref is not among the signed ones
 -- Just True:        everything is ok!
-verifySignature :: PublicKeys -> String -> HXT.XmlTree -> IO (Maybe Bool)
-verifySignature pks xid doc = do
+_verifySignatureOld :: PublicKeys -> String -> HXT.XmlTree -> IO (Maybe Bool)
+_verifySignatureOld pks xid doc = do
   x <- case HXT.runLA (getID xid) doc of
     [x] -> return x
     _ -> fail "verifySignature: element not found"
@@ -199,7 +212,7 @@ verifySignature pks xid doc = do
       verified :: Maybe Bool
       verified = verifyBytes keys (signatureMethodAlgorithm $ signedInfoSignatureMethod si) (signatureValue $ signatureSignatureValue s) six
       valid :: Bool
-      valid = elem (Just xid) rl && all isJust rl
+      valid = elem (Right xid) rl && all isRight rl
   return $ (valid &&) <$> verified
   where
   child n = HXT.runLA $ HXT.getChildren HXT.>>> isDSElem n HXT.>>> HXT.cleanupNamespaces HXT.collectPrefixUriPairs
@@ -214,3 +227,73 @@ verifySignature pks xid doc = do
   xpathsel t = "/*[local-name()='" ++ t ++ "' and namespace-uri()='" ++ namespaceURIString ns ++ "']"
   xpathbase = "/*" ++ xpathsel "Signature" ++ xpathsel "SignedInfo" ++ "//"
   xpath = xpathbase ++ ". | " ++ xpathbase ++ "@* | " ++ xpathbase ++ "namespace::*"
+
+
+verifySignature :: PublicKeys -> String -> HXT.XmlTree -> IO (Either SignatureError ())
+verifySignature pks xid doc = runExceptT $ do
+  x :: HXT.XmlTree
+    <- case HXT.runLA (getID xid) doc of
+      [x] -> return x
+      _ -> throwError SignedElementNotFound
+  sx :: HXT.XmlTree
+    <- case child "Signature" x of
+      [sx] -> return sx
+      _ -> throwError SignatureNotFoundOrEmpty
+  s@Signature{ signatureSignedInfo = si } :: Signature
+    <- case docToSAML sx of
+      Left err -> throwError . SignatureParseError $ show err
+      Right v -> pure v
+  six :: BS.ByteString
+    <- failWith SignatureCanonicalizationError
+      $ (applyCanonicalization (signedInfoCanonicalizationMethod si) (Just xpath) $ DOM.mkRoot [] [x])
+  rl :: NonEmpty.NonEmpty (Either String String)
+    <- failWith (SignatureVerifyReferenceError . (show (signedInfoReference si) <>))
+      $ mapM (`verifyReference` x) (signedInfoReference si)
+
+  when (null rl) $
+    throwError . SignatureVerifyNoReferences $ show rl
+  unless (all isRight rl) $
+    throwError . SignatureVerifyDanglingReferences $ show (signedInfoReference si, rl)
+  unless (elem (Right xid) rl) $
+    throwError . SignatureVerifyInputNotReferenced $ show rl
+
+  do
+    let keys = pks <> foldMap (foldMap keyinfo . keyInfoElements) (signatureKeyInfo s)
+        alg  = signatureMethodAlgorithm $ signedInfoSignatureMethod si
+        dig  = signatureValue $ signatureSignatureValue s
+    case verifyBytes keys alg dig six of
+      Nothing    -> throwError . SignatureVerificationCryptoUnsupported $ show (keys, alg, dig)
+      Just False -> throwError . SignatureVerificationCryptoFailed $ show (keys, alg, dig)
+      Just True  -> pure ()
+
+  where
+  child n = HXT.runLA $ HXT.getChildren HXT.>>> isDSElem n HXT.>>> HXT.cleanupNamespaces HXT.collectPrefixUriPairs
+  keyinfo (KeyInfoKeyValue kv) = publicKeyValues kv
+  keyinfo (X509Data l) = foldMap keyx509d l
+  keyinfo _ = mempty
+  keyx509d (X509Certificate sc) = keyx509p $ X509.certPubKey $ X509.getCertificate sc
+  keyx509d _ = mempty
+  keyx509p (X509.PubKeyRSA r) = mempty{ publicKeyRSA = Just r }
+  keyx509p (X509.PubKeyDSA d) = mempty{ publicKeyDSA = Just d }
+  keyx509p _ = mempty
+  xpathsel t = "/*[local-name()='" ++ t ++ "' and namespace-uri()='" ++ namespaceURIString ns ++ "']"
+  xpathbase = "/*" ++ xpathsel "Signature" ++ xpathsel "SignedInfo" ++ "//"
+  xpath = xpathbase ++ ". | " ++ xpathbase ++ "@* | " ++ xpathbase ++ "namespace::*"
+
+
+data SignatureError =
+    SignedElementNotFound
+  | SignatureNotFoundOrEmpty
+  | SignatureParseError String
+  | SignatureCanonicalizationError String
+  | SignatureVerifyReferenceError String
+  | SignatureVerifyNoReferences String
+  | SignatureVerifyDanglingReferences String
+  | SignatureVerifyInputNotReferenced String
+  | SignatureVerificationCryptoUnsupported String
+  | SignatureVerificationCryptoFailed String
+  deriving (Eq, Show)
+
+failWith :: forall m a. (MonadIO m, MonadError SignatureError m)
+         => (String -> SignatureError) -> IO a -> m a
+failWith mkerr action = either (throwError . mkerr . show @SomeException) pure =<< liftIO (try action)
