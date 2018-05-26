@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 -- |
 -- XML Signature Syntax and Processing
 --
@@ -76,14 +77,11 @@ applyTransformsXML tl = applyTransformsBytes tl . DOM.xshowBlob . return
 applyTransforms :: Maybe Transforms -> HXT.XmlTree -> IO BSL.ByteString
 applyTransforms = applyTransformsXML . maybe [] (NonEmpty.toList . transforms)
 
-asType :: a -> proxy a -> proxy a
-asType _ = id
-
 applyDigest :: DigestMethod -> BSL.ByteString -> BS.ByteString
-applyDigest (DigestMethod (Identified DigestSHA1) []) = BA.convert . asType SHA1 . hashlazy
-applyDigest (DigestMethod (Identified DigestSHA256) []) = BA.convert . asType SHA256 . hashlazy
-applyDigest (DigestMethod (Identified DigestSHA512) []) = BA.convert . asType SHA512 . hashlazy
-applyDigest (DigestMethod (Identified DigestRIPEMD160) []) = BA.convert . asType RIPEMD160 . hashlazy
+applyDigest (DigestMethod (Identified DigestSHA1) []) = BA.convert . hashlazy @SHA1
+applyDigest (DigestMethod (Identified DigestSHA256) []) = BA.convert . hashlazy @SHA256
+applyDigest (DigestMethod (Identified DigestSHA512) []) = BA.convert . hashlazy @SHA512
+applyDigest (DigestMethod (Identified DigestRIPEMD160) []) = BA.convert . hashlazy @RIPEMD160
 applyDigest d = error $ "unsupported " ++ show d
 
 generateReference :: Reference -> HXT.XmlTree -> IO Reference
