@@ -18,12 +18,12 @@ module SAML2.XML.Signature
   , signBase64
   , verifyBase64
   , generateSignature
-  , verifySignature
+  , verifySignature, SignatureError(..)
   ) where
 
 import Control.Applicative ((<|>))
 import Control.Exception (SomeException, try)
-import Control.Monad (guard, (<=<))
+import Control.Monad ((<=<))
 import Control.Monad.Except
 import Crypto.Number.Basic (numBytes)
 import Crypto.Number.Serialize (i2ospOf_, os2ip)
