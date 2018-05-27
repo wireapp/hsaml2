@@ -227,6 +227,9 @@ _verifySignatureOld pks xid doc = do
   xpath = xpathbase ++ ". | " ++ xpathbase ++ "@* | " ++ xpathbase ++ "namespace::*"
 
 
+-- | take a public key and an xml node ID that points to the sub-tree that needs to be signed, and
+-- return @Right ()@ if it is signed with that key.  otherwise, return a (hopefully helpful) error.
+-- use this if you want to verify signatures, and ignore the rest of this module if you can.
 verifySignature :: PublicKeys -> String -> HXT.XmlTree -> IO (Either SignatureError ())
 verifySignature pks xid doc = runExceptT $ do
   x :: HXT.XmlTree
