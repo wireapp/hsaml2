@@ -37,7 +37,8 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Either (isRight)
-import Data.Monoid ((<>))
+import Data.Semigroup (Semigroup(..))
+import Data.Monoid (Monoid(..))
 import qualified Data.X509 as X509
 import Network.URI (URI(..))
 import qualified Text.XML.HXT.Core as HXT
@@ -113,10 +114,13 @@ data PublicKeys = PublicKeys
   , publicKeyRSA :: Maybe RSA.PublicKey
   } deriving (Eq, Show)
 
+instance Semigroup PublicKeys where
+  PublicKeys dsa1 rsa1 <> PublicKeys dsa2 rsa2 =
+    PublicKeys (dsa1 <|> dsa2) (rsa1 <|> rsa2)
+
 instance Monoid PublicKeys where
   mempty = PublicKeys Nothing Nothing
-  PublicKeys dsa1 rsa1 `mappend` PublicKeys dsa2 rsa2 =
-    PublicKeys (dsa1 <|> dsa2) (rsa1 <|> rsa2)
+  mappend = ((<>))
 
 signingKeySignatureAlgorithm :: SigningKey -> SignatureAlgorithm
 signingKeySignatureAlgorithm (SigningKeyDSA _) = SignatureDSA_SHA1
