@@ -14,6 +14,8 @@ module SAML2.Core.Assertions where
 
 import qualified Text.XML.HXT.Arrow.Pickle.Schema as XPS
 
+import Data.Semigroup (Semigroup)
+
 import SAML2.Lens
 import SAML2.XML
 import qualified Text.XML.HXT.Arrow.Pickle.Xml.Invertible as XP
@@ -159,7 +161,7 @@ instance XP.XmlPickler Assertion where
   xpickle = xpElem "Assertion" $
     [XP.biCase|
       ((((((((v, i), t), n), s), Nothing), c), a), l) <-> Assertion v i t n s (Subject Nothing []) c a l
-      ((((((((v, i), t), n), s), Just r), c), a), l) <-> Assertion v i t n s r c a l|] 
+      ((((((((v, i), t), n), s), Just r), c), a), l) <-> Assertion v i t n s r c a l|]
     XP.>$<  (XP.xpAttr "Version" XP.xpickle
       XP.>*< XP.xpAttr "ID" XS.xpID
       XP.>*< XP.xpAttr "IssueInstant" XS.xpDateTime

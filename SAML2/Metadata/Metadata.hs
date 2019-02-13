@@ -7,11 +7,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- |
 -- Metadata for SAML V2.0
--- 
+--
 -- <http://docs.oasis-open.org/security/saml/v2.0/saml-metadata-2.0-os.pdf saml-metadata-2.0-os> §2
 module SAML2.Metadata.Metadata where
 
 import Data.Foldable (fold)
+import Data.Semigroup (Semigroup)
 import qualified Network.URI as URI
 import qualified Text.XML.HXT.Arrow.Pickle.Schema as XPS
 
