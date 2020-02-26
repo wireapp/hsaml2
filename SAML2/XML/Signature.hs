@@ -278,6 +278,7 @@ verifySignature pks xid doc = runExceptT $ do
           Right v -> pure v
 
   -- validate the hashes
+  -- (this only works if reference list contains xid and nothing else.)
   referenceChecks :: NonEmpty.NonEmpty (Either String String)
     <- failWith (SignatureVerifyReferenceError . (show (signedInfoReference signedInfoTyped) <>))
       . capture' "verifyReference"
