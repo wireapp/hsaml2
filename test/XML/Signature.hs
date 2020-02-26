@@ -6,16 +6,22 @@ module XML.Signature (tests) where
 
 import Control.Exception (SomeException, try)
 import Control.Monad
+import Data.ByteString.Base64
 import Data.Either (isLeft)
 import Data.List (isInfixOf)
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.String.Conversions
 import Data.Time
+import GHC.Stack
 import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Crypto.PubKey.DSA as DSA
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.X509 as X509
+import qualified SAML2.XML as HS
 import qualified Test.HUnit as U
 import qualified Text.XML.HXT.DOM.QualifiedName as HXT
 import qualified Text.XML.HXT.DOM.XmlNode as HXT
@@ -28,10 +34,11 @@ import SAML2.XML
 import SAML2.XML.Canonical
 import SAML2.XML.Signature
 
+import Text.XML.HXT.DOM.TypeDefs
 import XML
 
 tests :: U.Test
-tests = U.test [serializationTests, signVerifyTests, verifyTests]
+tests = U.test [serializationTests, signVerifyTests, verifyTests, counterExamples]
 
 
 ----------------------------------------------------------------------
@@ -311,3 +318,32 @@ examples = zipWith ($) xs [1..]
             "_c79c3ec8-1c26-4752-9443-1f76eb7d5dd6"
             (Right ())
           ]
+
+----------------------------------------------------------------------
+-- more counter-examples
+
+counterExamples :: U.Test
+counterExamples = U.test
+  [ U.TestCase $ do
+      (i, o) <- canonicalizeCounterExample "PGE+w6Q8L2E+"
+      U.assertEqual "canoncalization broke the input" i o
+  ]
+
+canonicalizeCounterExample :: HasCallStack => BS.ByteString -> IO (LBS, LBS)
+canonicalizeCounterExample base64input = do
+  let inbs :: LBS.ByteString
+      inbs = either (error "badcase") cs $ Data.ByteString.Base64.decode base64input
+
+      tree :: XmlTree
+      tree = either (error "badcase") id $ HS.xmlToDocE inbs
+
+      algo :: CanonicalizationAlgorithm
+      algo = CanonicalXMLExcl10 {canonicalWithComments = True}
+
+  outbs :: LBS.ByteString <- cs <$> canonicalize' algo Nothing Nothing [tree]
+
+  -- LBS.putStr ("[" <> inbs <> "]\n")
+  -- LBS.putStr ("[" <> outbs <> "]\n")
+  -- print $ inbs == outbs
+
+  pure (inbs, outbs)
