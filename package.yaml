@@ -42,6 +42,7 @@ dependencies:
   - string-conversions
   - template-haskell
   - time
+  - utf8-string
   - x509
   - zlib
 
