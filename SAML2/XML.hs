@@ -138,7 +138,8 @@ xmlToDocE = fix . xmlToDocBroken
     fix (Just good) =
       Right good
 
--- | this is broken and returns xml trees containing parse errors on occasion.
+-- | Take a UTF-8 encoded bytestring and return an xml tree.  This is broken and returns xml
+-- trees containing parse errors on occasion; call 'xmlToDocE' instead.
 xmlToDocBroken :: BSL.ByteString -> Maybe HXT.XmlTree
 xmlToDocBroken = listToMaybe . HXT.runLA
   (HXT.xreadDoc
