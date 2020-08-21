@@ -36,10 +36,6 @@ import Data.Tree.Class (getChildren)
 import Network.URI (URI)
 import qualified Text.XML.HXT.Core as HXT
 import qualified Data.Tree.NTree.TypeDefs as HXT
-import Text.XML.HXT.Arrow.Edit (escapeXmlRefs)
-import Text.XML.HXT.DOM.ShowXml (xshow')
-import Text.XML.HXT.DOM.XmlNode (getChildren)
-
 import SAML2.XML.Types
 import SAML2.Core.Datatypes
 import qualified Text.XML.HXT.Arrow.Pickle.Xml.Invertible as XP
@@ -114,7 +110,7 @@ samlToDoc' = head . getChildren . head
 
 -- | see 'docToXML''
 docToXML :: HXT.XmlTree -> BSL.ByteString
-docToXML = xshow' cquot aquot (:) . getChildren where (cquot, aquot) = escapeXmlRefs
+docToXML = BSL.concat . HXT.runLA (HXT.xshowBlob HXT.getChildren)
 
 -- | 'docToXML' chops off the root element from the tree.  'docToXML'' does not do this.  it may
 -- make sense to remove 'docToXML', but since i don't understand this code enough to be confident
