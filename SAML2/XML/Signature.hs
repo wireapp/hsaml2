@@ -20,6 +20,7 @@ module SAML2.XML.Signature
   , verifyBase64
   , generateSignature
   , verifySignature, SignatureError(..)
+  , verifySignatureLegacy
   , applyCanonicalization
   , applyTransforms
   ) where
@@ -215,8 +216,8 @@ generateSignature sk si = do
 -- Nothing:          no matching key/alg pairs found
 -- Just False:       signature verification failed || bad refs || explicit ref is not among the signed ones
 -- Just True:        everything is ok!
-_verifySignatureOld :: PublicKeys -> String -> HXT.XmlTree -> IO (Maybe Bool)
-_verifySignatureOld pks xid doc = do
+verifySignatureOld :: PublicKeys -> String -> HXT.XmlTree -> IO (Maybe Bool)
+verifySignatureOld pks xid doc = do
   let namespaces = DOM.toNsEnv $ HXT.runLA HXT.collectNamespaceDecl doc
   x <- case HXT.runLA (getID xid HXT.>>> HXT.attachNsEnv namespaces) doc of
     [x] -> return x
@@ -247,6 +248,14 @@ _verifySignatureOld pks xid doc = do
   xpathbase = "/*" ++ xpathsel "Signature" ++ xpathsel "SignedInfo" ++ "//"
   xpath = xpathbase ++ ". | " ++ xpathbase ++ "@* | " ++ xpathbase ++ "namespace::*"
 
+-- | It turns out sometimes we don't get envelopped signatures, but signatures that are
+-- located outside the signed sub-tree.  Since 'verifySiganture' doesn't support this case, if
+-- you encounter it you should fall back to 'verifySignatureLegacy'.
+verifySignatureLegacy :: PublicKeys -> String -> HXT.XmlTree -> IO (Either SignatureError ())
+verifySignatureLegacy pks xid doc = warpResult <$> verifySignatureOld pks xid doc
+  where
+    warpResult (Just True) = Right ()
+    warpResult bad = Left (SignatureVerificationLegacyFailure bad)
 
 -- | take a public key and an xml node ID that points to the sub-tree that needs to be signed, and
 -- return @Right ()@ if it is signed with that key.  otherwise, return a (hopefully helpful) error.
@@ -373,6 +382,7 @@ data SignatureError =
   | SignatureVerifyInputNotReferenced String
   | SignatureVerificationCryptoUnsupported String
   | SignatureVerificationCryptoFailed String
+  | SignatureVerificationLegacyFailure (Maybe Bool)
   deriving (Eq, Show)
 
 failWith :: forall m a. (MonadIO m, MonadError SignatureError m)
