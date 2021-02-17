@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.32.0.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2acfb238f4a4776225446a00bae4dbea0ef09d1ee110bf475af3cbce70e0aeb5
+-- hash: 93e4591f103e2e70c8143132867e52ffc8d583a30748404f2bfd20b5cc05c7bb
 
 name:           hsaml2
 version:        0.1
@@ -18,10 +18,22 @@ maintainer:     dylan@dylex.net
 copyright:      2016
 license:        Apache-2.0
 license-file:   LICENSE
+tested-with:    GHC == 8.0.2 || == 8.2.2 || == 8.4.4 || == 8.6.5 || == 8.8.3
 build-type:     Simple
 extra-source-files:
-    test/XML/signature-example.xml
+    test/Metadata/metadata-idp.xml
+    test/Metadata/metadata-nyu.xml
+    test/Metadata/metadata-osf.xml
+    test/Metadata/metadata-sp.xml
     test/XML/encryption-example.xml
+    test/XML/noncanonical1.xml
+    test/XML/noncanonical2.xml
+    test/XML/noncanonical3.xml
+    test/XML/noncanonical4.xml
+    test/XML/noncanonical5.xml
+    test/XML/noncanonical6.xml
+    test/XML/signature-example.xml
+    test/XML/world.txt
 
 source-repository head
   type: git

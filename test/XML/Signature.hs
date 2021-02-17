@@ -12,6 +12,7 @@ import Data.List (isInfixOf)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.String.Conversions
 import Data.Time
+import qualified Data.X509 as X509
 import GHC.Stack
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -20,7 +21,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.X509 as X509
 import qualified SAML2.XML as HS
 import qualified Test.HUnit as U
 import qualified Text.XML.HXT.DOM.QualifiedName as HXT
@@ -34,12 +34,12 @@ import SAML2.XML
 import SAML2.XML.Canonical
 import SAML2.XML.Signature
 
+import Data.Tree.NTree.TypeDefs
 import Text.XML.HXT.DOM.TypeDefs
 import XML
 
 tests :: U.Test
 tests = U.test [serializationTests, signVerifyTests, verifyTests, counterExamples]
-
 
 ----------------------------------------------------------------------
 -- serialization roundtrips
@@ -335,12 +335,12 @@ canonicalizeCounterExample base64input = do
       inbs = either (error "badcase") cs $ Data.ByteString.Base64.decode base64input
 
       tree :: XmlTree
-      tree = either (error "badcase") id $ HS.xmlToDocE inbs
+      tree = maybe (error "badcase") id $ HS.xmlToDoc inbs
 
       algo :: CanonicalizationAlgorithm
       algo = CanonicalXMLExcl10 {canonicalWithComments = True}
 
-  outbs :: LBS.ByteString <- cs <$> canonicalize' algo Nothing Nothing [tree]
+  outbs :: LBS.ByteString <- cs <$> canonicalize algo Nothing Nothing (NTree (XTag (mkQName "" "" "root") []) [tree])
 
   -- LBS.putStr ("[" <> inbs <> "]\n")
   -- LBS.putStr ("[" <> outbs <> "]\n")

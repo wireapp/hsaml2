@@ -36,7 +36,6 @@ import Data.Tree.Class (getChildren)
 import Network.URI (URI)
 import qualified Text.XML.HXT.Core as HXT
 import qualified Data.Tree.NTree.TypeDefs as HXT
-
 import SAML2.XML.Types
 import SAML2.Core.Datatypes
 import qualified Text.XML.HXT.Arrow.Pickle.Xml.Invertible as XP
