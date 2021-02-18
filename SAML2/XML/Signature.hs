@@ -26,6 +26,7 @@ module SAML2.XML.Signature
   ) where
 
 import GHC.Stack
+import Control.Exception (handle)
 import System.IO.Silently (hCapture)
 import System.IO (stdout, stderr)
 import Control.Applicative ((<|>))
@@ -252,12 +253,17 @@ verifySignatureOld pks xid doc = do
 -- located outside the signed sub-tree.  Since 'verifySiganture' doesn't support this case, if
 -- you encounter it you should fall back to 'verifySignatureLegacy'.
 verifySignatureLegacy :: PublicKeys -> String -> HXT.XmlTree -> IO (Either SignatureError ())
-verifySignatureLegacy pks xid doc = warpResult <$> verifySignatureOld pks xid doc
+verifySignatureLegacy pks xid doc = catchAll $ warpResult <$> verifySignatureOld pks xid doc
   where
-    warpResult (Just True) = Right ()
-    warpResult bad = Left (SignatureVerificationLegacyFailure bad)
+    catchAll :: IO (Either SignatureError ()) -> IO (Either SignatureError ())
+    catchAll = handle $ pure . Left . SignatureVerificationLegacyFailure . Left . (show @SomeException)
 
--- | take a public key and an xml node ID that points to the sub-tree that needs to be signed, and
+    warpResult (Just True) = Right ()
+    warpResult bad = Left (SignatureVerificationLegacyFailure (Right bad))
+
+-- | Incomoplete!  Consider using 'verifySigantureLegacy' instead!
+--
+-- take a public key and an xml node ID that points to the sub-tree that needs to be signed, and
 -- return @Right ()@ if it is signed with that key.  otherwise, return a (hopefully helpful) error.
 -- use this if you want to verify signatures, and ignore the rest of this module if you can.
 --
@@ -382,7 +388,7 @@ data SignatureError =
   | SignatureVerifyInputNotReferenced String
   | SignatureVerificationCryptoUnsupported String
   | SignatureVerificationCryptoFailed String
-  | SignatureVerificationLegacyFailure (Maybe Bool)
+  | SignatureVerificationLegacyFailure (Either String (Maybe Bool))
   deriving (Eq, Show)
 
 failWith :: forall m a. (MonadIO m, MonadError SignatureError m)
