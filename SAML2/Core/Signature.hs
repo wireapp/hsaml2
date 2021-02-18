@@ -51,7 +51,7 @@ verifySAMLProtocol :: SAMLP.SAMLProtocol a => BSL.ByteString -> IO a
 verifySAMLProtocol b = do
   x <- maybe (fail "invalid XML") return $ xmlToDoc b
   m <- either fail return $ docToSAML x
-  v <- DS.verifySignature mempty (DS.signedID m) x
+  v <- DS.verifySignatureLegacy mempty (DS.signedID m) x
   case v of
     Left msg -> fail $ "verifySAMLProtocol: invalid or missing signature: " ++ show msg
     Right () -> return m
@@ -63,5 +63,5 @@ verifySAMLProtocol b = do
 verifySAMLProtocol' :: SAMLP.SAMLProtocol a => DS.PublicKeys -> XmlTree -> IO a
 verifySAMLProtocol' pubkeys x = do
   m <- either fail return $ docToSAML x
-  v <- DS.verifySignature pubkeys (DS.signedID m) x
+  v <- DS.verifySignatureLegacy pubkeys (DS.signedID m) x
   either (fail . show) (const $ pure m) v

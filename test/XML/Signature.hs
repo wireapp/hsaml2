@@ -212,7 +212,7 @@ signVerifyTests = U.test
       U.assertBool "AuthnRequest with verifySAMLProtocol' (bad pubkeys): isLeft"
         $ isLeft req''
       U.assertBool "AuthnRequest with verifySAMLProtocol' (bad pubkeys): error message matches"
-        $ "SignatureVerificationCryptoFailed" `isInfixOf` show req''
+        $ "(SignatureVerificationLegacyFailure (Right (Just False)))" `isInfixOf` show req''
   ]
 
 {-# NOINLINE keypair1 #-}
@@ -289,7 +289,7 @@ runVerifyExample :: VerifyExample -> U.Test
 runVerifyExample (VerifyExample keys xmltree refid want examplenumber) = U.TestCase $ do
   let keys'    = either (error . show) id $ parseKeyInfo keys
   let xmltree' = either (error . show) id $ (EL.decode >=> xmlToDocE) xmltree
-  have <- verifySignature keys' refid xmltree'
+  have <- verifySignatureLegacy keys' refid xmltree'
   U.assertEqual ("verify example #" ++ show examplenumber) want have
 
 parseKeyInfo :: BSL.ByteString -> Either String PublicKeys
