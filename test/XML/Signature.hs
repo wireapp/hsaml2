@@ -212,7 +212,7 @@ signVerifyTests = U.test
       U.assertBool "AuthnRequest with verifySAMLProtocol' (bad pubkeys): isLeft"
         $ isLeft req''
       U.assertBool "AuthnRequest with verifySAMLProtocol' (bad pubkeys): error message matches"
-        $ "SignatureVerificationCryptoFailed" `isInfixOf` show req''
+        $ "(SignatureVerificationLegacyFailure (Right (Just False)))" `isInfixOf` show req''
   ]
 
 {-# NOINLINE keypair1 #-}
