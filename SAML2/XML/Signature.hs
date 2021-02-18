@@ -19,7 +19,7 @@ module SAML2.XML.Signature
   , signBase64
   , verifyBase64
   , generateSignature
-  , verifySignature, SignatureError(..)
+  , verifySignatureIncomplete, SignatureError(..)
   , verifySignatureLegacy
   , applyCanonicalization
   , applyTransforms
@@ -278,8 +278,8 @@ verifySignatureLegacy pks xid doc = catchAll $ warpResult <$> verifySignatureOld
 -- are applied to the signed subtrees.  (this is confusing because one of the transforms is
 -- usually a form of canonicalization, but it makes sense if you accept the premise that any
 -- of this does.)
-verifySignature :: PublicKeys -> String -> HXT.XmlTree -> IO (Either SignatureError ())
-verifySignature pks xid doc = runExceptT $ do
+verifySignatureIncomplete :: PublicKeys -> String -> HXT.XmlTree -> IO (Either SignatureError ())
+verifySignatureIncomplete pks xid doc = runExceptT $ do
   signedSubtree :: HXT.XmlTree
     <- failWith SignatureParseError
       $ getSubtreeWithNamespaces xid doc
