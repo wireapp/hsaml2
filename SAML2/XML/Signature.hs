@@ -229,9 +229,8 @@ verifySignatureOld pks xid doc = do
   s@Signature{ signatureSignedInfo = si } <- either fail return $ docToSAML sx
   six <- applyCanonicalization (signedInfoCanonicalizationMethod si) (Just xpath) $ DOM.mkRoot [] [x]
   rl <- mapM (`verifyReference` x) (signedInfoReference si)
-  let keys = pks <> foldMap (foldMap keyinfo . keyInfoElements) (signatureKeyInfo s)
-      verified :: Maybe Bool
-      verified = verifyBytes keys (signatureMethodAlgorithm $ signedInfoSignatureMethod si) (signatureValue $ signatureSignatureValue s) six
+  let verified :: Maybe Bool
+      verified = verifyBytes pks (signatureMethodAlgorithm $ signedInfoSignatureMethod si) (signatureValue $ signatureSignatureValue s) six
       valid :: Bool
       valid = elem (Right xid) rl && all isRight rl
   return $ (valid &&) <$> verified
