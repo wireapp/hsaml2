@@ -56,7 +56,7 @@ dependencies:
   - template-haskell
   - time
   - utf8-string
-  - x509
+  - crypton-x509
   - zlib
 
 pkg-config-dependencies: libxml-2.0
