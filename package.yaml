@@ -37,7 +37,6 @@ dependencies:
   - base >=4.8 && <5
   - base64-bytestring
   - bytestring
-  - cryptonite
   - data-default
   - http-types
   - hxt
@@ -57,6 +56,7 @@ dependencies:
   - time
   - utf8-string
   - crypton-x509
+  - crypton
   - zlib
 
 pkg-config-dependencies: libxml-2.0

@@ -7,13 +7,27 @@ packages:
 - completed:
     hackage: invertible-hxt-0.1@sha256:8495092e94f6a7eebbdf980a8ccd3684f2078b02b2faf4b4822b1202ee42dae9,865
     pantry-tree:
-      size: 195
       sha256: da65a22968a2fecc17f42e66f1f3d0d2f341e4af50bf496c6c0fe84c0907f756
+      size: 195
   original:
     hackage: invertible-hxt-0.1
+- completed:
+    hackage: crypton-x509-1.7.6@sha256:c567657a705b6d6521f9dd2de999bf530d618ec00f3b939df76a41fb0fe94281,2339
+    pantry-tree:
+      sha256: 729e7db8dfc0a8b43e08bbd8d1387c9065e39beda6ac39e0fb9f10140810a3eb
+      size: 1080
+  original:
+    hackage: crypton-x509-1.7.6
+- completed:
+    hackage: crypton-0.33@sha256:5e92f29b9b7104d91fcdda1dec9400c9ad1f1791c231cc41ceebd783fb517dee,18202
+    pantry-tree:
+      sha256: 38809499d7f9775ef45cd29ab5c3dc9b283a813f34c1cdc56681b24f8cf8bb4f
+      size: 23148
+  original:
+    hackage: crypton-0.33
 snapshots:
 - completed:
-    size: 587821
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/24.yaml
-    sha256: 06d844ba51e49907bd29cb58b4a5f86ee7587a4cd7e6cf395eeec16cba619ce8
-  original: lts-18.24
+    sha256: 63539429076b7ebbab6daa7656cfb079393bf644971156dc349d7c0453694ac2
+    size: 586296
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/18.yaml
+  original: lts-18.18
