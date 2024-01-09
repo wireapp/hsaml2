@@ -29,7 +29,6 @@ extra-source-files:
     test/XML/noncanonical2.xml
     test/XML/noncanonical3.xml
     test/XML/noncanonical4.xml
-    test/XML/noncanonical5.xml
     test/XML/noncanonical6.xml
     test/XML/signature-example.xml
     test/XML/world.txt
