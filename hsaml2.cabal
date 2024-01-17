@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.6.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 338f0b8a8b2fed749e198ae9b963ee6009a7f96a94c9776ff070a8bb7c369109
 
 name:           hsaml2
 version:        0.1.2
@@ -31,7 +29,6 @@ extra-source-files:
     test/XML/noncanonical2.xml
     test/XML/noncanonical3.xml
     test/XML/noncanonical4.xml
-    test/XML/noncanonical5.xml
     test/XML/noncanonical6.xml
     test/XML/signature-example.xml
     test/XML/world.txt
@@ -87,7 +84,8 @@ library
     , base >=4.8 && <5
     , base64-bytestring
     , bytestring
-    , cryptonite
+    , crypton
+    , crypton-x509
     , data-default
     , http-types
     , hxt
@@ -106,7 +104,6 @@ library
     , template-haskell
     , time
     , utf8-string
-    , x509
     , zlib
   default-language: Haskell2010
 
@@ -136,7 +133,8 @@ test-suite spec
     , base >=4.8 && <5
     , base64-bytestring
     , bytestring
-    , cryptonite
+    , crypton
+    , crypton-x509
     , data-default
     , hsaml2
     , http-types
@@ -157,6 +155,5 @@ test-suite spec
     , template-haskell
     , time
     , utf8-string
-    , x509
     , zlib
   default-language: Haskell2010

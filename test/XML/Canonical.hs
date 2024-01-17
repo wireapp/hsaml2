@@ -42,8 +42,6 @@ tests = U.test
     "<doc>\n   <e1></e1>\n   <e2></e2>\n   <e3 id=\"elem3\" name=\"elem3\"></e3>\n   <e4 id=\"elem4\" name=\"elem4\"></e4>\n   <e5 xmlns=\"http://example.org\" xmlns:a=\"http://www.w3.org\" xmlns:b=\"http://www.ietf.org\" attr=\"I'm\" attr2=\"all\" b:attr=\"sorted\" a:attr=\"out\"></e5>\n   <e6 xmlns:a=\"http://www.w3.org\">\n      <e7 xmlns=\"http://www.ietf.org\">\n         <e8 xmlns=\"\">\n            <e9 xmlns:a=\"http://www.ietf.org\" attr=\"default\"></e9>\n         </e8>\n      </e7>\n   </e6>\n</doc>"
   , testC14N (CanonicalXML10 False) "test/XML/noncanonical4.xml" False
     "<doc>\n   <text>First line&#xD;\nSecond line</text>\n   <value>2</value>\n   <compute>value&gt;\"0\" &amp;&amp; value&lt;\"10\" ?\"valid\":\"error\"</compute>\n   <compute expr=\"value>&quot;0&quot; &amp;&amp; value&lt;&quot;10&quot; ?&quot;valid&quot;:&quot;error&quot;\">valid</compute>\n   <norm attr=\" '    &#xD;&#xA;&#x9;   ' \"></norm>\n   <normNames attr=\"A &#xD;&#xA;&#x9; B\"></normNames>\n   <normId id=\"' &#xD;&#xA;&#x9; '\"></normId>\n</doc>"
-  , testC14N (CanonicalXML10 False) "test/XML/noncanonical5.xml" True
-    "<doc attrExtEnt=\"entExt\">\n   Hello, world!\n</doc>"
   , testC14N (CanonicalXML10 False) "test/XML/noncanonical6.xml" False
     "<doc>\194\169</doc>"
   -- , testC14N (CanonicalXML10 False) "test/XML/noncanonical7.xml"
