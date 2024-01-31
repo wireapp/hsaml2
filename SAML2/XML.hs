@@ -3,6 +3,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE TypeOperators #-}
+
 module SAML2.XML
   ( module SAML2.XML.Types
   , module SAML2.Core.Datatypes
@@ -22,6 +23,7 @@ module SAML2.XML
   , docToSAML
   , docToXML
   , xmlToSAML
+  , xmlToDocE
   , xmlToDoc
   ) where
 
@@ -36,6 +38,7 @@ import Text.XML.HXT.Arrow.Edit (escapeXmlRefs)
 import Text.XML.HXT.DOM.ShowXml (xshow')
 import Text.XML.HXT.DOM.XmlNode (getChildren)
 
+import qualified Data.Tree.NTree.TypeDefs as HXT
 import SAML2.XML.Types
 import SAML2.Core.Datatypes
 import qualified Text.XML.HXT.Arrow.Pickle.Xml.Invertible as XP
@@ -106,14 +109,6 @@ docToXML = xshow' cquot aquot (:) . getChildren where (cquot, aquot) = escapeXml
 samlToXML :: XP.XmlPickler a => a -> BSL.ByteString
 samlToXML = docToXML . samlToDoc
 
-xmlToDoc :: BSL.ByteString -> Maybe HXT.XmlTree
-xmlToDoc = listToMaybe . HXT.runLA
-  (HXT.xreadDoc
-  HXT.>>> HXT.removeWhiteSpace
-  HXT.>>> HXT.neg HXT.isXmlPi
-  HXT.>>> HXT.propagateNamespaces)
-  . BSLU.toString
-
 docToSAML :: XP.XmlPickler a => HXT.XmlTree -> Either String a
 docToSAML = XP.unpickleDoc' XP.xpickle
   . head
@@ -121,3 +116,27 @@ docToSAML = XP.unpickleDoc' XP.xpickle
 
 xmlToSAML :: XP.XmlPickler a => BSL.ByteString -> Either String a
 xmlToSAML = maybe (Left "invalid XML") docToSAML . xmlToDoc
+
+xmlToDoc :: BSL.ByteString -> Maybe HXT.XmlTree
+xmlToDoc = either (const Nothing) Just . xmlToDocE
+
+xmlToDocE :: BSL.ByteString -> Either String HXT.XmlTree
+xmlToDocE = fix . xmlToDocLenient
+  where
+    fix Nothing =
+      Left "Nothing"
+    fix (Just (HXT.NTree (HXT.XError num msg) shouldBeEmpty)) =
+      Left $ show num ++ ": " ++ msg ++ (if (null shouldBeEmpty) then "" else show shouldBeEmpty)
+    fix (Just good) =
+      Right good
+
+-- | Take a UTF-8 encoded bytestring and return an xml tree.  This is broken and returns xml
+-- trees containing parse errors on occasion; call 'xmlToDocE' instead.
+xmlToDocLenient :: BSL.ByteString -> Maybe HXT.XmlTree
+xmlToDocLenient = listToMaybe . HXT.runLA
+  (HXT.xreadDoc
+  HXT.>>> HXT.removeWhiteSpace
+  HXT.>>> HXT.neg HXT.isXmlPi
+  HXT.>>> HXT.propagateNamespaces)
+  . BSLU.toString
+

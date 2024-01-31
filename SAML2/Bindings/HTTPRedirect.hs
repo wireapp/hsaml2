@@ -23,7 +23,6 @@ import qualified Data.ByteString.Base64.Lazy as Base64
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as BSL
 import Data.Maybe (fromMaybe, maybeToList)
-import Data.Monoid ((<>))
 import Data.Proxy (Proxy(..))
 import Network.HTTP.Types.Header (ResponseHeaders, hLocation, hCacheControl, hPragma)
 import Network.HTTP.Types.URI (Query, renderQuery, urlDecode)

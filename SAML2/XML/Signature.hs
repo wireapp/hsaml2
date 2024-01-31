@@ -1,4 +1,6 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 -- |
 -- XML Signature Syntax and Processing
@@ -14,11 +16,15 @@ module SAML2.XML.Signature
   , verifyBase64
   , generateSignature
   , verifySignature
+  , SignatureError (..)
+  , verifySignatureLegacy
+  , applyCanonicalization
+  , applyTransforms
   ) where
 
 import Control.Applicative ((<|>))
 import Control.Monad (guard, (<=<))
-import Crypto.Number.Basic (numBytes)
+import Control.Exception (SomeException, handle)
 import Crypto.Number.Serialize (i2ospOf_, os2ip)
 import Crypto.Hash (hashlazy, SHA1(..), SHA256(..), SHA512(..), RIPEMD160(..))
 import qualified Crypto.PubKey.DSA as DSA
@@ -30,8 +36,6 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe (isJust)
-import Data.Monoid ((<>))
-import qualified Data.X509 as X509
 import Network.URI (URI(..))
 import qualified Text.XML.HXT.Core as HXT
 import qualified Text.XML.HXT.DOM.ShowXml as DOM
@@ -71,14 +75,11 @@ applyTransformsXML tl = applyTransformsBytes tl . DOM.xshowBlob . return
 applyTransforms :: Maybe Transforms -> HXT.XmlTree -> IO BSL.ByteString
 applyTransforms = applyTransformsXML . maybe [] (NonEmpty.toList . transforms)
 
-asType :: a -> proxy a -> proxy a
-asType _ = id
-
 applyDigest :: DigestMethod -> BSL.ByteString -> BS.ByteString
-applyDigest (DigestMethod (Identified DigestSHA1) []) = BA.convert . asType SHA1 . hashlazy
-applyDigest (DigestMethod (Identified DigestSHA256) []) = BA.convert . asType SHA256 . hashlazy
-applyDigest (DigestMethod (Identified DigestSHA512) []) = BA.convert . asType SHA512 . hashlazy
-applyDigest (DigestMethod (Identified DigestRIPEMD160) []) = BA.convert . asType RIPEMD160 . hashlazy
+applyDigest (DigestMethod (Identified DigestSHA1) []) = BA.convert . hashlazy @SHA1
+applyDigest (DigestMethod (Identified DigestSHA256) []) = BA.convert . hashlazy @SHA256
+applyDigest (DigestMethod (Identified DigestSHA512) []) = BA.convert . hashlazy @SHA512
+applyDigest (DigestMethod (Identified DigestRIPEMD160) []) = BA.convert . hashlazy @RIPEMD160
 applyDigest d = error $ "unsupported " ++ show d
 
 generateReference :: Reference -> HXT.XmlTree -> IO Reference
@@ -132,22 +133,6 @@ signingKeyValue (SigningKeyRSA (RSA.toPublicKey -> RSA.PublicKey _ n e)) = RSAKe
   { rsaKeyValueModulus = n
   , rsaKeyValueExponent = e
   }
-
-publicKeyValues :: KeyValue -> PublicKeys
-publicKeyValues DSAKeyValue{ dsaKeyValuePQ = Just (p, q), dsaKeyValueG = Just g, dsaKeyValueY = y } = mempty
-  { publicKeyDSA = Just $ DSA.PublicKey
-    { DSA.public_params = DSA.Params
-      { DSA.params_p = p
-      , DSA.params_q = q
-      , DSA.params_g = g
-      }
-    , DSA.public_y = y
-    }
-  }
-publicKeyValues RSAKeyValue{ rsaKeyValueModulus = n, rsaKeyValueExponent = e } = mempty
-  { publicKeyRSA = Just $ RSA.PublicKey (numBytes n) n e
-  }
-publicKeyValues _ = mempty
 
 signBytes :: SigningKey -> BS.ByteString -> IO BS.ByteString
 signBytes (SigningKeyDSA k) b = do
@@ -210,14 +195,31 @@ verifySignature pks xid doc = do
   return $ (valid &&) <$> verified
   where
   child n = HXT.runLA $ HXT.getChildren HXT.>>> isDSElem n HXT.>>> HXT.cleanupNamespaces HXT.collectPrefixUriPairs
-  keyinfo (KeyInfoKeyValue kv) = publicKeyValues kv
-  keyinfo (X509Data l) = foldMap keyx509d l
-  keyinfo _ = mempty
-  keyx509d (X509Certificate sc) = keyx509p $ X509.certPubKey $ X509.getCertificate sc
-  keyx509d _ = mempty
-  keyx509p (X509.PubKeyRSA r) = mempty{ publicKeyRSA = Just r }
-  keyx509p (X509.PubKeyDSA d) = mempty{ publicKeyDSA = Just d }
-  keyx509p _ = mempty
   xpathsel t = "/*[local-name()='" ++ t ++ "' and namespace-uri()='" ++ namespaceURIString ns ++ "']"
   xpathbase = "/*" ++ xpathsel "Signature" ++ xpathsel "SignedInfo" ++ "//"
   xpath = xpathbase ++ ". | " ++ xpathbase ++ "@* | " ++ xpathbase ++ "namespace::*"
+
+-- | It turns out sometimes we don't get envelopped signatures, but signatures that are
+-- located outside the signed sub-tree.  Since 'verifySiganture' doesn't support this case, if
+-- you encounter it you should fall back to 'verifySignatureLegacy'.
+verifySignatureLegacy :: PublicKeys -> String -> HXT.XmlTree -> IO (Either SignatureError ())
+verifySignatureLegacy pks xid doc = catchAll $ warpResult <$> verifySignature pks xid doc
+  where
+    catchAll :: IO (Either SignatureError ()) -> IO (Either SignatureError ())
+    catchAll = handle $ pure . Left . SignatureVerificationLegacyFailure . Left . (show @SomeException)
+
+    warpResult (Just True) = Right ()
+    warpResult bad = Left (SignatureVerificationLegacyFailure (Right bad))
+
+data SignatureError =
+    SignedElementNotFound
+  | SignatureNotFoundOrEmpty
+  | SignatureParseError String
+  | SignatureCanonicalizationError String
+  | SignatureVerifyReferenceError String
+  | SignatureVerifyBadReferences String
+  | SignatureVerifyInputNotReferenced String
+  | SignatureVerificationCryptoUnsupported String
+  | SignatureVerificationCryptoFailed String
+  | SignatureVerificationLegacyFailure (Either String (Maybe Bool))
+  deriving (Eq, Show)

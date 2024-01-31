@@ -8,7 +8,6 @@ module SAML2.Core.Namespaces
   , samlURNIdentifier
   ) where
 
-import Data.Monoid ((<>))
 import Network.URI (URI(..))
 
 import SAML2.Core.Versioning
