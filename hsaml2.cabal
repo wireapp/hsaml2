@@ -96,6 +96,8 @@ library
     mtl,
     network-uri,
     process,
+    silently,
+    string-conversions,
     semigroups,
     template-haskell,
     time,
