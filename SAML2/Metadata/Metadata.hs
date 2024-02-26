@@ -42,11 +42,11 @@ xpEntityID = XS.xpAnyURI -- XXX maxLength=1024
 
 -- | §2.2.2
 data Endpoint = Endpoint
-  { endpointBinding :: IdentifiedURI Binding,
-    endpointLocation :: AnyURI,
-    endpointResponseLocation :: Maybe AnyURI,
-    endpointAttrs :: Nodes,
-    endpointXML :: Nodes
+  { endpointBinding :: IdentifiedURI Binding
+  , endpointLocation :: AnyURI
+  , endpointResponseLocation :: Maybe AnyURI
+  , endpointAttrs :: Nodes
+  , endpointXML :: Nodes
   }
   deriving (Eq, Show)
 
@@ -55,17 +55,17 @@ instance XP.XmlPickler Endpoint where
     [XP.biCase|
       ((((b, l), r), a), x) <-> Endpoint b l r a x|]
       XP.>$< ( XP.xpAttr "Binding" XP.xpickle
-                 XP.>*< XP.xpAttr "Location" XS.xpAnyURI
-                 XP.>*< XP.xpAttrImplied "ResponseLocation" XS.xpAnyURI
-                 XP.>*< XP.xpAnyAttrs
-                 XP.>*< XP.xpList xpTrimAnyElem
+                XP.>*< XP.xpAttr "Location" XS.xpAnyURI
+                XP.>*< XP.xpAttrImplied "ResponseLocation" XS.xpAnyURI
+                XP.>*< XP.xpAnyAttrs
+                XP.>*< XP.xpList xpTrimAnyElem
              )
 
 -- | §2.2.3
 data IndexedEndpoint = IndexedEndpoint
-  { indexedEndpoint :: Endpoint,
-    indexedEndpointIndex :: XS.UnsignedShort,
-    indexedEndpointIsDefault :: XS.Boolean
+  { indexedEndpoint :: Endpoint
+  , indexedEndpointIndex :: XS.UnsignedShort
+  , indexedEndpointIsDefault :: XS.Boolean
   }
   deriving (Eq, Show)
 
@@ -74,13 +74,13 @@ instance XP.XmlPickler IndexedEndpoint where
     [XP.biCase|
       ((i, d), e) <-> IndexedEndpoint e i d|]
       XP.>$< ( XP.xpAttr "index" XS.xpUnsignedShort
-                 XP.>*< XP.xpDefault False (XP.xpAttr "isDefault" XS.xpBoolean)
-                 XP.>*< XP.xpickle
+                XP.>*< XP.xpDefault False (XP.xpAttr "isDefault" XS.xpBoolean)
+                XP.>*< XP.xpickle
              )
 
 data Localized a = Localized
-  { localizedLang :: XS.Language,
-    localized :: a
+  { localizedLang :: XS.Language
+  , localized :: a
   }
   deriving (Eq, Show)
 
@@ -89,7 +89,7 @@ xpLocalized p =
   [XP.biCase|
     (l, x) <-> Localized l x|]
     XP.>$< ( xpXmlLang
-               XP.>*< p
+              XP.>*< p
            )
 
 -- | §2.2.4
@@ -107,27 +107,27 @@ instance XP.XmlPickler LocalizedURI where
 data Metadata
   = -- | §2.3.2
     EntityDescriptor
-      { entityID :: EntityID,
-        metadataID :: Maybe XS.ID,
-        metadataValidUntil :: Maybe XS.DateTime,
-        metadataCacheDuration :: Maybe XS.Duration,
-        entityAttrs :: Nodes,
-        metadataSignature :: Maybe DS.Signature,
-        metadataExtensions :: Extensions,
-        entityDescriptors :: Descriptors,
-        entityOrganization :: Maybe Organization,
-        entityContactPerson :: [Contact],
-        entityAditionalMetadataLocation :: [AdditionalMetadataLocation]
+      { entityID :: EntityID
+      , metadataID :: Maybe XS.ID
+      , metadataValidUntil :: Maybe XS.DateTime
+      , metadataCacheDuration :: Maybe XS.Duration
+      , entityAttrs :: Nodes
+      , metadataSignature :: Maybe DS.Signature
+      , metadataExtensions :: Extensions
+      , entityDescriptors :: Descriptors
+      , entityOrganization :: Maybe Organization
+      , entityContactPerson :: [Contact]
+      , entityAditionalMetadataLocation :: [AdditionalMetadataLocation]
       }
   | -- | §2.3.1
     EntitiesDescriptor
-      { metadataID :: Maybe XS.ID,
-        metadataValidUntil :: Maybe XS.DateTime,
-        metadataCacheDuration :: Maybe XS.Duration,
-        entitiesName :: Maybe XS.String,
-        metadataSignature :: Maybe DS.Signature,
-        metadataExtensions :: Extensions,
-        entities :: List1 Metadata
+      { metadataID :: Maybe XS.ID
+      , metadataValidUntil :: Maybe XS.DateTime
+      , metadataCacheDuration :: Maybe XS.Duration
+      , entitiesName :: Maybe XS.String
+      , metadataSignature :: Maybe DS.Signature
+      , metadataExtensions :: Extensions
+      , entities :: List1 Metadata
       }
   deriving (Eq, Show)
 
@@ -137,29 +137,29 @@ instance XP.XmlPickler Metadata where
       Left ((((((((((e, i), vu), cd), xa), sig), ext), desc), org), cp), aml) <-> EntityDescriptor e i vu cd xa sig ext desc org cp aml
       Right ((((((i, vu), cd), n), sig), ext), l) <-> EntitiesDescriptor i vu cd n sig ext l|]
       XP.>$< ( xpElem
-                 "EntityDescriptor"
-                 ( XP.xpAttr "entityID" xpEntityID
-                     XP.>*< XP.xpAttrImplied "ID" XS.xpID
-                     XP.>*< XP.xpAttrImplied "validUntil" XS.xpDateTime
-                     XP.>*< XP.xpAttrImplied "cacheDuration" XS.xpDuration
-                     XP.>*< XP.xpAnyAttrs
-                     XP.>*< XP.xpickle
-                     XP.>*< XP.xpickle
-                     XP.>*< XP.xpickle
-                     XP.>*< XP.xpickle
-                     XP.>*< XP.xpList XP.xpickle
-                     XP.>*< XP.xpList XP.xpickle
-                 )
-                 XP.>|< xpElem
-                   "EntitiesDescriptor"
-                   ( XP.xpAttrImplied "ID" XS.xpID
-                       XP.>*< XP.xpAttrImplied "validUntil" XS.xpDateTime
-                       XP.>*< XP.xpAttrImplied "cacheDuration" XS.xpDuration
-                       XP.>*< XP.xpAttrImplied "Name" XS.xpString
-                       XP.>*< XP.xpickle
-                       XP.>*< XP.xpickle
-                       XP.>*< xpList1 XP.xpickle
-                   )
+                "EntityDescriptor"
+                ( XP.xpAttr "entityID" xpEntityID
+                    XP.>*< XP.xpAttrImplied "ID" XS.xpID
+                    XP.>*< XP.xpAttrImplied "validUntil" XS.xpDateTime
+                    XP.>*< XP.xpAttrImplied "cacheDuration" XS.xpDuration
+                    XP.>*< XP.xpAnyAttrs
+                    XP.>*< XP.xpickle
+                    XP.>*< XP.xpickle
+                    XP.>*< XP.xpickle
+                    XP.>*< XP.xpickle
+                    XP.>*< XP.xpList XP.xpickle
+                    XP.>*< XP.xpList XP.xpickle
+                )
+                XP.>|< xpElem
+                  "EntitiesDescriptor"
+                  ( XP.xpAttrImplied "ID" XS.xpID
+                      XP.>*< XP.xpAttrImplied "validUntil" XS.xpDateTime
+                      XP.>*< XP.xpAttrImplied "cacheDuration" XS.xpDuration
+                      XP.>*< XP.xpAttrImplied "Name" XS.xpString
+                      XP.>*< XP.xpickle
+                      XP.>*< XP.xpickle
+                      XP.>*< xpList1 XP.xpickle
+                  )
              )
 
 instance DS.Signable Metadata where
@@ -169,8 +169,8 @@ instance DS.Signable Metadata where
 -- | §2.3.1 empty list means missing
 newtype Extensions = Extensions {extensions :: Nodes}
   deriving
-    ( Eq,
-      Show
+    ( Eq
+    , Show
 #if MIN_VERSION_base(4,11,0)
     , Semigroup
 #endif
@@ -179,25 +179,25 @@ newtype Extensions = Extensions {extensions :: Nodes}
 
 instance XP.XmlPickler Extensions where
   xpickle =
-    XP.xpDefault (Extensions [])
-      $ xpElem "Extensions"
-      $ [XP.biCase|
+    XP.xpDefault (Extensions []) $
+      xpElem "Extensions" $
+        [XP.biCase|
       x <-> Extensions x|]
-        XP.>$< (XP.xpList1 xpTrimAnyElem)
+          XP.>$< (XP.xpList1 xpTrimAnyElem)
 
 data Descriptors
   = Descriptors {descriptors :: List1 Descriptor}
   | -- | §2.5
     AffiliationDescriptor
-      { affiliationDescriptorAffiliationOwnerID :: EntityID,
-        affiliationDescriptorID :: Maybe XS.ID,
-        affiliationDescriptorValidUntil :: Maybe XS.DateTime,
-        affiliationDescriptorCacheDuration :: Maybe XS.Duration,
-        affiliationDescriptorAttrs :: Nodes,
-        affiliationDescriptorSignature :: Maybe DS.Signature,
-        affiliationDescriptorExtensions :: Extensions,
-        affiliationDescriptorAffiliateMember :: List1 EntityID,
-        affiliationDescriptorKeyDescriptor :: [KeyDescriptor]
+      { affiliationDescriptorAffiliationOwnerID :: EntityID
+      , affiliationDescriptorID :: Maybe XS.ID
+      , affiliationDescriptorValidUntil :: Maybe XS.DateTime
+      , affiliationDescriptorCacheDuration :: Maybe XS.Duration
+      , affiliationDescriptorAttrs :: Nodes
+      , affiliationDescriptorSignature :: Maybe DS.Signature
+      , affiliationDescriptorExtensions :: Extensions
+      , affiliationDescriptorAffiliateMember :: List1 EntityID
+      , affiliationDescriptorKeyDescriptor :: [KeyDescriptor]
       }
   deriving (Eq, Show)
 
@@ -207,74 +207,82 @@ instance XP.XmlPickler Descriptors where
       Left l <-> Descriptors l
       Right ((((((((o, i), vu), cd), a), sig), ext), am), kd) <-> AffiliationDescriptor o i vu cd a sig ext am kd|]
       XP.>$< ( xpList1 XP.xpickle
-                 XP.>|< xpElem
-                   "AffiliationDescriptor"
-                   ( XP.xpAttr "affiliationOwnerID" xpEntityID
-                       XP.>*< XP.xpAttrImplied "ID" XS.xpID
-                       XP.>*< XP.xpAttrImplied "validUntil" XS.xpDateTime
-                       XP.>*< XP.xpAttrImplied "cacheDuration" XS.xpDuration
-                       XP.>*< XP.xpAnyAttrs
-                       XP.>*< XP.xpickle
-                       XP.>*< XP.xpickle
-                       XP.>*< xpList1 (xpElem "AffiliateMember" xpEntityID)
-                       XP.>*< XP.xpList XP.xpickle
-                   )
+                XP.>|< xpElem
+                  "AffiliationDescriptor"
+                  ( XP.xpAttr "affiliationOwnerID" xpEntityID
+                      XP.>*< XP.xpAttrImplied "ID" XS.xpID
+                      XP.>*< XP.xpAttrImplied "validUntil" XS.xpDateTime
+                      XP.>*< XP.xpAttrImplied "cacheDuration" XS.xpDuration
+                      XP.>*< XP.xpAnyAttrs
+                      XP.>*< XP.xpickle
+                      XP.>*< XP.xpickle
+                      XP.>*< xpList1 (xpElem "AffiliateMember" xpEntityID)
+                      XP.>*< XP.xpList XP.xpickle
+                  )
              )
 
 data Descriptor
-  = Descriptor
-    { descriptorRole :: !RoleDescriptor
-    } -- ^§2.4.1
-  | ExtendedRoleDescriptor
-    { descriptorRoleExtensionType :: !(XS.String)
-    , descriptorRole :: !RoleDescriptor
-    , descriptorAdditionalNodes :: !Nodes
-    } -- ^§2.4.1 (variant extended with use of xsi:type attribute)
-  | IDPSSODescriptor
-    { descriptorRole :: !RoleDescriptor
-    , descriptorSSO :: !SSODescriptor
-    , descriptorWantAuthnRequestsSigned :: XS.Boolean
-    , descriptorSingleSignOnService :: List1 Endpoint
-    , descriptorNameIDMappingService :: [Endpoint]
-    , descriptorAssertionIDRequestService :: [Endpoint]
-    , descriptorAttributeProfile :: [XS.AnyURI]
-    , descriptorAttribute :: [SAML.Attribute]
-    } -- ^§2.4.3
-  | SPSSODescriptor
-    { descriptorRole :: !RoleDescriptor
-    , descriptorSSO :: !SSODescriptor
-    , descriptorAuthnRequestsSigned :: XS.Boolean
-    , descriptorWantAssertionsSigned :: XS.Boolean
-    , descriptorAssertionConsumerService :: List1 IndexedEndpoint
-    , descriptorAttributeConsumingService :: [AttributeConsumingService]
-    } -- ^§2.4.4
-  | AuthnAuthorityDescriptor
-    { descriptorRole :: !RoleDescriptor
-    , descriptorAuthnQueryService :: List1 Endpoint
-    , descriptorAssertionIDRequestService :: [Endpoint]
-    , descriptorNameIDFormat :: [IdentifiedURI NameIDFormat]
-    } -- ^§2.4.5
-  | AttributeAuthorityDescriptor
-    { descriptorRole :: !RoleDescriptor
-    , descriptorAttributeService :: List1 Endpoint
-    , descriptorAssertionIDRequestService :: [Endpoint]
-    , descriptorNameIDFormat :: [IdentifiedURI NameIDFormat]
-    , descriptorAttributeProfile :: [XS.AnyURI]
-    , descriptorAttribute :: [SAML.Attribute]
-    } -- ^§2.4.7
-  | PDPDescriptor
-    { descriptorRole :: !RoleDescriptor
-    , descriptorAuthzService :: List1 Endpoint
-    , descriptorAssertionIDRequestService :: [Endpoint]
-    , descriptorNameIDFormat :: [IdentifiedURI NameIDFormat]
-    } -- ^§2.4.6
+  = -- | §2.4.1
+    Descriptor
+      { descriptorRole :: !RoleDescriptor
+      }
+  | -- | §2.4.1 (variant extended with use of xsi:type attribute)
+    ExtendedRoleDescriptor
+      { descriptorRoleExtensionType :: !(XS.String)
+      , descriptorRole :: !RoleDescriptor
+      , descriptorAdditionalNodes :: !Nodes
+      }
+  | -- | §2.4.3
+    IDPSSODescriptor
+      { descriptorRole :: !RoleDescriptor
+      , descriptorSSO :: !SSODescriptor
+      , descriptorWantAuthnRequestsSigned :: XS.Boolean
+      , descriptorSingleSignOnService :: List1 Endpoint
+      , descriptorNameIDMappingService :: [Endpoint]
+      , descriptorAssertionIDRequestService :: [Endpoint]
+      , descriptorAttributeProfile :: [XS.AnyURI]
+      , descriptorAttribute :: [SAML.Attribute]
+      }
+  | -- | §2.4.4
+    SPSSODescriptor
+      { descriptorRole :: !RoleDescriptor
+      , descriptorSSO :: !SSODescriptor
+      , descriptorAuthnRequestsSigned :: XS.Boolean
+      , descriptorWantAssertionsSigned :: XS.Boolean
+      , descriptorAssertionConsumerService :: List1 IndexedEndpoint
+      , descriptorAttributeConsumingService :: [AttributeConsumingService]
+      }
+  | -- | §2.4.5
+    AuthnAuthorityDescriptor
+      { descriptorRole :: !RoleDescriptor
+      , descriptorAuthnQueryService :: List1 Endpoint
+      , descriptorAssertionIDRequestService :: [Endpoint]
+      , descriptorNameIDFormat :: [IdentifiedURI NameIDFormat]
+      }
+  | -- | §2.4.7
+    AttributeAuthorityDescriptor
+      { descriptorRole :: !RoleDescriptor
+      , descriptorAttributeService :: List1 Endpoint
+      , descriptorAssertionIDRequestService :: [Endpoint]
+      , descriptorNameIDFormat :: [IdentifiedURI NameIDFormat]
+      , descriptorAttributeProfile :: [XS.AnyURI]
+      , descriptorAttribute :: [SAML.Attribute]
+      }
+  | -- | §2.4.6
+    PDPDescriptor
+      { descriptorRole :: !RoleDescriptor
+      , descriptorAuthzService :: List1 Endpoint
+      , descriptorAssertionIDRequestService :: [Endpoint]
+      , descriptorNameIDFormat :: [IdentifiedURI NameIDFormat]
+      }
   deriving (Eq, Show)
 
 xsiTypeQName :: HXT.QName
 xsiTypeQName = HXT.mkQName "xsi" "type" "http://www.w3.org/2001/XMLSchema-instance"
 
 instance XP.XmlPickler Descriptor where
-  xpickle = [XP.biCase|
+  xpickle =
+    [XP.biCase|
       Left (Left (Left (Left (Left (Left ((t, rde), an)))))) <-> ExtendedRoleDescriptor t rde an
       Left (Left (Left (Left (Left (Right r))))) <-> Descriptor r
       Left (Left (Left (Left (Right (((((((ws, r), s), sso), nim), air), ap), a))))) <-> IDPSSODescriptor r s ws sso nim air ap a
@@ -282,52 +290,65 @@ instance XP.XmlPickler Descriptor where
       Left (Left (Right (((r, a), s), n))) <-> AuthnAuthorityDescriptor r a s n
       Left (Right (((((r, a), s), n), tp), t)) <-> AttributeAuthorityDescriptor r a s n tp t
       Right (((r, a), s), n) <-> PDPDescriptor r a s n|]
-    XP.>$< (xpElem "RoleDescriptor" 
-        (XP.xpAttrQN xsiTypeQName XS.xpString
-          XP.>*< XP.xpickle 
-          XP.>*< XP.xpTrees)
-    XP.>|<  xpElem "RoleDescriptor" XP.xpickle
-    XP.>|<  xpElem "IDPSSODescriptor"
-            (XP.xpDefault False (XP.xpAttr "WantAuthnRequestsSigned" XS.xpBoolean)
-      XP.>*< XP.xpickle
-      XP.>*< XP.xpickle
-      XP.>*< xpList1 (xpElem "SingleSignOnService" XP.xpickle)
-      XP.>*< XP.xpList (xpElem "NameIDMappingService" XP.xpickle)
-      XP.>*< XP.xpList (xpElem "AssertionIDRequestService" XP.xpickle)
-      XP.>*< XP.xpList (xpElem "AttributeProfile" XS.xpAnyURI)
-      XP.>*< XP.xpList XP.xpickle)
-    XP.>|<  xpElem "SPSSODescriptor"
-            (XP.xpDefault False (XP.xpAttr "AuthnRequestsSigned" XS.xpBoolean)
-      XP.>*< XP.xpDefault False (XP.xpAttr "WantAssertionsSigned" XS.xpBoolean)
-      XP.>*< XP.xpickle
-      XP.>*< XP.xpickle
-      XP.>*< xpList1 (xpElem "AssertionConsumerService" XP.xpickle)
-      XP.>*< XP.xpList XP.xpickle)
-    XP.>|<  xpElem "AuthnAuthorityDescriptor"
-            (XP.xpickle
-      XP.>*< xpList1 (xpElem "AuthnQueryService" XP.xpickle)
-      XP.>*< XP.xpList (xpElem "AssertionIDRequestService" XP.xpickle)
-      XP.>*< XP.xpList (xpElem "NameIDFormat" XP.xpickle))
-    XP.>|<  xpElem "AttributeAuthorityDescriptor"
-            (XP.xpickle
-      XP.>*< xpList1 (xpElem "AttributeService" XP.xpickle)
-      XP.>*< XP.xpList (xpElem "AssertionIDRequestService" XP.xpickle)
-      XP.>*< XP.xpList (xpElem "NameIDFormat" XP.xpickle)
-      XP.>*< XP.xpList (xpElem "AttributeProfile" XS.xpAnyURI)
-      XP.>*< XP.xpList XP.xpickle)
-    XP.>|<  xpElem "PDPDescriptor"
-            (XP.xpickle
-      XP.>*< xpList1 (xpElem "AuthzService" XP.xpickle)
-      XP.>*< XP.xpList (xpElem "AssertionIDRequestService" XP.xpickle)
-      XP.>*< XP.xpList (xpElem "NameIDFormat" XP.xpickle)))
+      XP.>$< ( xpElem
+                "RoleDescriptor"
+                ( XP.xpAttrQN xsiTypeQName XS.xpString
+                    XP.>*< XP.xpickle
+                    XP.>*< XP.xpTrees
+                )
+                XP.>|< xpElem "RoleDescriptor" XP.xpickle
+                XP.>|< xpElem
+                  "IDPSSODescriptor"
+                  ( XP.xpDefault False (XP.xpAttr "WantAuthnRequestsSigned" XS.xpBoolean)
+                      XP.>*< XP.xpickle
+                      XP.>*< XP.xpickle
+                      XP.>*< xpList1 (xpElem "SingleSignOnService" XP.xpickle)
+                      XP.>*< XP.xpList (xpElem "NameIDMappingService" XP.xpickle)
+                      XP.>*< XP.xpList (xpElem "AssertionIDRequestService" XP.xpickle)
+                      XP.>*< XP.xpList (xpElem "AttributeProfile" XS.xpAnyURI)
+                      XP.>*< XP.xpList XP.xpickle
+                  )
+                XP.>|< xpElem
+                  "SPSSODescriptor"
+                  ( XP.xpDefault False (XP.xpAttr "AuthnRequestsSigned" XS.xpBoolean)
+                      XP.>*< XP.xpDefault False (XP.xpAttr "WantAssertionsSigned" XS.xpBoolean)
+                      XP.>*< XP.xpickle
+                      XP.>*< XP.xpickle
+                      XP.>*< xpList1 (xpElem "AssertionConsumerService" XP.xpickle)
+                      XP.>*< XP.xpList XP.xpickle
+                  )
+                XP.>|< xpElem
+                  "AuthnAuthorityDescriptor"
+                  ( XP.xpickle
+                      XP.>*< xpList1 (xpElem "AuthnQueryService" XP.xpickle)
+                      XP.>*< XP.xpList (xpElem "AssertionIDRequestService" XP.xpickle)
+                      XP.>*< XP.xpList (xpElem "NameIDFormat" XP.xpickle)
+                  )
+                XP.>|< xpElem
+                  "AttributeAuthorityDescriptor"
+                  ( XP.xpickle
+                      XP.>*< xpList1 (xpElem "AttributeService" XP.xpickle)
+                      XP.>*< XP.xpList (xpElem "AssertionIDRequestService" XP.xpickle)
+                      XP.>*< XP.xpList (xpElem "NameIDFormat" XP.xpickle)
+                      XP.>*< XP.xpList (xpElem "AttributeProfile" XS.xpAnyURI)
+                      XP.>*< XP.xpList XP.xpickle
+                  )
+                XP.>|< xpElem
+                  "PDPDescriptor"
+                  ( XP.xpickle
+                      XP.>*< xpList1 (xpElem "AuthzService" XP.xpickle)
+                      XP.>*< XP.xpList (xpElem "AssertionIDRequestService" XP.xpickle)
+                      XP.>*< XP.xpList (xpElem "NameIDFormat" XP.xpickle)
+                  )
+             )
 
 -- | §2.3.2.1
 data Organization = Organization
-  { organizationAttrs :: Nodes,
-    organizationExtensions :: Extensions,
-    organizationName :: List1 LocalizedName,
-    organizationDisplayName :: List1 LocalizedName,
-    organizationURL :: List1 LocalizedURI
+  { organizationAttrs :: Nodes
+  , organizationExtensions :: Extensions
+  , organizationName :: List1 LocalizedName
+  , organizationDisplayName :: List1 LocalizedName
+  , organizationURL :: List1 LocalizedURI
   }
   deriving (Eq, Show)
 
@@ -337,22 +358,22 @@ instance XP.XmlPickler Organization where
       [XP.biCase|
       ((((a, e), n), d), u) <-> Organization a e n d u|]
         XP.>$< ( XP.xpAnyAttrs
-                   XP.>*< XP.xpickle
-                   XP.>*< xpList1 (xpElem "OrganizationName" XP.xpickle)
-                   XP.>*< xpList1 (xpElem "OrganizationDisplayName" XP.xpickle)
-                   XP.>*< xpList1 (xpElem "OrganizationURL" XP.xpickle)
+                  XP.>*< XP.xpickle
+                  XP.>*< xpList1 (xpElem "OrganizationName" XP.xpickle)
+                  XP.>*< xpList1 (xpElem "OrganizationDisplayName" XP.xpickle)
+                  XP.>*< xpList1 (xpElem "OrganizationURL" XP.xpickle)
                )
 
 -- | §2.3.2.2
 data Contact = ContactPerson
-  { contactType :: ContactType,
-    contactAttrs :: Nodes,
-    contactExtensions :: Extensions,
-    contactCompany :: Maybe XS.String,
-    contactGivenName :: Maybe XS.String,
-    contactSurName :: Maybe XS.String,
-    contactEmailAddress :: [XS.AnyURI],
-    contactTelephoneNumber :: [XS.String]
+  { contactType :: ContactType
+  , contactAttrs :: Nodes
+  , contactExtensions :: Extensions
+  , contactCompany :: Maybe XS.String
+  , contactGivenName :: Maybe XS.String
+  , contactSurName :: Maybe XS.String
+  , contactEmailAddress :: [XS.AnyURI]
+  , contactTelephoneNumber :: [XS.String]
   }
   deriving (Eq, Show)
 
@@ -362,13 +383,13 @@ instance XP.XmlPickler Contact where
       [XP.biCase|
       (((((((t, a), ext), c), g), s), e), tn) <-> ContactPerson t a ext c g s e tn|]
         XP.>$< ( XP.xpAttr "contactType" XP.xpickle
-                   XP.>*< XP.xpAnyAttrs
-                   XP.>*< XP.xpickle
-                   XP.>*< XP.xpOption (xpElem "Company" XS.xpString)
-                   XP.>*< XP.xpOption (xpElem "GivenName" XS.xpString)
-                   XP.>*< XP.xpOption (xpElem "SurName" XS.xpString)
-                   XP.>*< XP.xpList (xpElem "EmailAddress" XS.xpAnyURI)
-                   XP.>*< XP.xpList (xpElem "TelephoneNumber" XS.xpString)
+                  XP.>*< XP.xpAnyAttrs
+                  XP.>*< XP.xpickle
+                  XP.>*< XP.xpOption (xpElem "Company" XS.xpString)
+                  XP.>*< XP.xpOption (xpElem "GivenName" XS.xpString)
+                  XP.>*< XP.xpOption (xpElem "SurName" XS.xpString)
+                  XP.>*< XP.xpList (xpElem "EmailAddress" XS.xpAnyURI)
+                  XP.>*< XP.xpList (xpElem "TelephoneNumber" XS.xpString)
                )
 
 data ContactType
@@ -391,8 +412,8 @@ instance XP.XmlPickler ContactType where
 
 -- | §2.3.2.3
 data AdditionalMetadataLocation = AdditionalMetadataLocation
-  { additionalMetadataLocationNamespace :: XS.AnyURI,
-    additionalMetadataLocation :: XS.AnyURI
+  { additionalMetadataLocationNamespace :: XS.AnyURI
+  , additionalMetadataLocation :: XS.AnyURI
   }
   deriving (Eq, Show)
 
@@ -402,22 +423,22 @@ instance XP.XmlPickler AdditionalMetadataLocation where
       [XP.biCase|
       (n, l) <-> AdditionalMetadataLocation n l|]
         XP.>$< ( XP.xpAttr "namespace" XS.xpAnyURI
-                   XP.>*< XS.xpAnyURI
+                  XP.>*< XS.xpAnyURI
                )
 
 -- | §2.4.1
 data RoleDescriptor = RoleDescriptor
-  { roleDescriptorID :: Maybe XS.ID,
-    roleDescriptorValidUntil :: Maybe XS.DateTime,
-    roleDescriptorCacheDuration :: Maybe XS.Duration,
-    roleDescriptorProtocolSupportEnumeration :: [XS.AnyURI],
-    roleDescriptorErrorURL :: Maybe XS.AnyURI,
-    roleDescriptorAttrs :: Nodes,
-    roleDescriptorSignature :: Maybe DS.Signature,
-    roleDescriptorExtensions :: Extensions,
-    roleDescriptorKeyDescriptor :: [KeyDescriptor],
-    roleDescriptorOrganization :: Maybe Organization,
-    roleDescriptorContactPerson :: [Contact]
+  { roleDescriptorID :: Maybe XS.ID
+  , roleDescriptorValidUntil :: Maybe XS.DateTime
+  , roleDescriptorCacheDuration :: Maybe XS.Duration
+  , roleDescriptorProtocolSupportEnumeration :: [XS.AnyURI]
+  , roleDescriptorErrorURL :: Maybe XS.AnyURI
+  , roleDescriptorAttrs :: Nodes
+  , roleDescriptorSignature :: Maybe DS.Signature
+  , roleDescriptorExtensions :: Extensions
+  , roleDescriptorKeyDescriptor :: [KeyDescriptor]
+  , roleDescriptorOrganization :: Maybe Organization
+  , roleDescriptorContactPerson :: [Contact]
   }
   deriving (Eq, Show)
 
@@ -426,25 +447,25 @@ instance XP.XmlPickler RoleDescriptor where
     [XP.biCase|
       ((((((((((i, vu), cd), ps), eu), a), sig), ext), key), org), cp) <-> RoleDescriptor i vu cd ps eu a sig ext key org cp|]
       XP.>$< ( XP.xpAttrImplied "ID" XS.xpID
-                 XP.>*< XP.xpAttrImplied "validUntil" XS.xpDateTime
-                 XP.>*< XP.xpAttrImplied "cacheDuration" XS.xpDuration
-                 XP.>*< XP.xpAttr "protocolSupportEnumeration" xpAnyURIList
-                 XP.>*< XP.xpAttrImplied "errorURL" XS.xpAnyURI
-                 XP.>*< XP.xpAnyAttrs
-                 XP.>*< XP.xpickle
-                 XP.>*< XP.xpickle
-                 XP.>*< XP.xpList XP.xpickle
-                 XP.>*< XP.xpOption XP.xpickle
-                 XP.>*< XP.xpList XP.xpickle
+                XP.>*< XP.xpAttrImplied "validUntil" XS.xpDateTime
+                XP.>*< XP.xpAttrImplied "cacheDuration" XS.xpDuration
+                XP.>*< XP.xpAttr "protocolSupportEnumeration" xpAnyURIList
+                XP.>*< XP.xpAttrImplied "errorURL" XS.xpAnyURI
+                XP.>*< XP.xpAnyAttrs
+                XP.>*< XP.xpickle
+                XP.>*< XP.xpickle
+                XP.>*< XP.xpList XP.xpickle
+                XP.>*< XP.xpOption XP.xpickle
+                XP.>*< XP.xpList XP.xpickle
              )
-    where
-      xpAnyURIList =
-        XP.xpWrapEither
-          ( mapM (maybe (Left "invalid anyURI") Right . URI.parseURIReference) . words,
-            tail . foldr ((.) (' ' :) . URI.uriToString id) ""
-          )
-          $ XP.xpTextDT
-          $ XPS.scDT (namespaceURIString ns) "anyURIListType" []
+   where
+    xpAnyURIList =
+      XP.xpWrapEither
+        ( mapM (maybe (Left "invalid anyURI") Right . URI.parseURIReference) . words
+        , tail . foldr ((.) (' ' :) . URI.uriToString id) ""
+        )
+        $ XP.xpTextDT
+        $ XPS.scDT (namespaceURIString ns) "anyURIListType" []
 
 instance DS.Signable RoleDescriptor where
   signature' = $(fieldLens 'roleDescriptorSignature)
@@ -452,9 +473,9 @@ instance DS.Signable RoleDescriptor where
 
 -- | §2.4.1.1
 data KeyDescriptor = KeyDescriptor
-  { keyDescriptorUse :: KeyTypes,
-    keyDescriptorKeyInfo :: DS.KeyInfo,
-    keyDescriptorEncryptionMethod :: [XEnc.EncryptionMethod]
+  { keyDescriptorUse :: KeyTypes
+  , keyDescriptorKeyInfo :: DS.KeyInfo
+  , keyDescriptorEncryptionMethod :: [XEnc.EncryptionMethod]
   }
   deriving (Eq, Show)
 
@@ -464,8 +485,8 @@ instance XP.XmlPickler KeyDescriptor where
       [XP.biCase|
       ((t, i), m) <-> KeyDescriptor t i m|]
         XP.>$< ( XP.xpDefault KeyTypeBoth (XP.xpAttr "use" XP.xpickle)
-                   XP.>*< XP.xpickle
-                   XP.>*< XP.xpList (xpElem "EncryptionMethod" XEnc.xpEncryptionMethodType)
+                  XP.>*< XP.xpickle
+                  XP.>*< XP.xpList (xpElem "EncryptionMethod" XEnc.xpEncryptionMethodType)
                )
 
 data KeyTypes
@@ -490,10 +511,10 @@ instance XP.XmlPickler KeyTypes where
 
 -- | §2.4.2
 data SSODescriptor = SSODescriptor
-  { ssoDescriptorArtifactResolutionService :: [IndexedEndpoint],
-    ssoDescriptorSingleLogoutService :: [Endpoint],
-    ssoDescriptorManageNameIDService :: [Endpoint],
-    ssoDescriptorNameIDFormat :: [IdentifiedURI NameIDFormat]
+  { ssoDescriptorArtifactResolutionService :: [IndexedEndpoint]
+  , ssoDescriptorSingleLogoutService :: [Endpoint]
+  , ssoDescriptorManageNameIDService :: [Endpoint]
+  , ssoDescriptorNameIDFormat :: [IdentifiedURI NameIDFormat]
   }
   deriving (Eq, Show)
 
@@ -502,18 +523,18 @@ instance XP.XmlPickler SSODescriptor where
     [XP.biCase|
       (((a, s), m), n) <-> SSODescriptor a s m n|]
       XP.>$< ( XP.xpList (xpElem "ArtifactResolutionService" XP.xpickle)
-                 XP.>*< XP.xpList (xpElem "SingleLogoutService" XP.xpickle)
-                 XP.>*< XP.xpList (xpElem "ManageNameIDService" XP.xpickle)
-                 XP.>*< XP.xpList (xpElem "NameIDFormat" XP.xpickle)
+                XP.>*< XP.xpList (xpElem "SingleLogoutService" XP.xpickle)
+                XP.>*< XP.xpList (xpElem "ManageNameIDService" XP.xpickle)
+                XP.>*< XP.xpList (xpElem "NameIDFormat" XP.xpickle)
              )
 
 -- | §2.4.4.1
 data AttributeConsumingService = AttributeConsumingService
-  { attributeConsumingServiceIndex :: XS.UnsignedShort,
-    attributeConsumingServiceIsDefault :: Bool,
-    attributeConsumingServiceServiceName :: List1 LocalizedName,
-    attributeConsumingServiceServiceDescription :: [LocalizedName],
-    attributeConsumingServiceRequestedAttribute :: List1 RequestedAttribute
+  { attributeConsumingServiceIndex :: XS.UnsignedShort
+  , attributeConsumingServiceIsDefault :: Bool
+  , attributeConsumingServiceServiceName :: List1 LocalizedName
+  , attributeConsumingServiceServiceDescription :: [LocalizedName]
+  , attributeConsumingServiceRequestedAttribute :: List1 RequestedAttribute
   }
   deriving (Eq, Show)
 
@@ -523,16 +544,16 @@ instance XP.XmlPickler AttributeConsumingService where
       [XP.biCase|
       ((((i, d), sn), sd), ra) <-> AttributeConsumingService i d sn sd ra|]
         XP.>$< ( XP.xpAttr "index" XS.xpUnsignedShort
-                   XP.>*< XP.xpDefault False (XP.xpAttr "isDefault" XS.xpBoolean)
-                   XP.>*< xpList1 (xpElem "ServiceName" XP.xpickle)
-                   XP.>*< XP.xpList (xpElem "ServiceDescription" XP.xpickle)
-                   XP.>*< xpList1 XP.xpickle
+                  XP.>*< XP.xpDefault False (XP.xpAttr "isDefault" XS.xpBoolean)
+                  XP.>*< xpList1 (xpElem "ServiceName" XP.xpickle)
+                  XP.>*< XP.xpList (xpElem "ServiceDescription" XP.xpickle)
+                  XP.>*< xpList1 XP.xpickle
                )
 
 -- | §2.4.4.1.1
 data RequestedAttribute = RequestedAttribute
-  { requestedAttribute :: !SAML.Attribute,
-    requestedAttributeIsRequired :: Bool
+  { requestedAttribute :: !SAML.Attribute
+  , requestedAttributeIsRequired :: Bool
   }
   deriving (Eq, Show)
 
@@ -542,5 +563,5 @@ instance XP.XmlPickler RequestedAttribute where
       [XP.biCase|
       (r, a) <-> RequestedAttribute a r|]
         XP.>$< ( XP.xpDefault False (XP.xpAttr "isRequired" XS.xpBoolean)
-                   XP.>*< SAML.xpAttributeType
+                  XP.>*< SAML.xpAttributeType
                )
