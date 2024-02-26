@@ -50,7 +50,7 @@ xpTrimElemNS :: Namespace -> String -> XP.PU a -> XP.PU a
 xpTrimElemNS ns n c = XP.xpTrim $ XP.xpElemQN (mkNName ns n) (c XP.>* XP.xpWhitespace)
 
 xpXmlLang :: XP.PU XS.Language
-xpXmlLang = XP.xpAttrQN (mkNName xmlNS "lang") $ XS.xpLanguage
+xpXmlLang = XP.xpAttrQN (mkNName xmlNS "lang") XS.xpLanguage
 
 type IP = XS.String
 

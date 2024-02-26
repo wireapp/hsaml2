@@ -1,6 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 -- |
@@ -33,644 +32,756 @@ xpElem :: String -> XP.PU a -> XP.PU a
 xpElem = xpTrimElemNS ns
 
 data ProtocolType = ProtocolType
-  { protocolID :: XS.ID
-  , protocolVersion :: SAMLVersion
-  , protocolIssueInstant :: DateTime
-  , protocolDestination :: Maybe AnyURI
-  , protocolConsent :: IdentifiedURI Consent
-  , protocolIssuer :: Maybe SAML.Issuer
-  , protocolSignature :: Maybe DS.Signature
-  , protocolExtensions :: [Node]
-  , relayState :: Maybe RelayState -- ^out-of-band data, not part of XML
-  } deriving (Eq, Show)
+    { protocolID :: XS.ID
+    , protocolVersion :: SAMLVersion
+    , protocolIssueInstant :: DateTime
+    , protocolDestination :: Maybe AnyURI
+    , protocolConsent :: IdentifiedURI Consent
+    , protocolIssuer :: Maybe SAML.Issuer
+    , protocolSignature :: Maybe DS.Signature
+    , protocolExtensions :: [Node]
+    , relayState :: Maybe RelayState
+    -- ^ out-of-band data, not part of XML
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler ProtocolType where
-  xpickle = XP.xpWrap (pt, tp)
-    $       (XP.xpAttr "ID" XS.xpID
-      XP.>*< XP.xpAttr "Version" XP.xpickle
-      XP.>*< XP.xpAttr "IssueInstant" XS.xpDateTime
-      XP.>*< XP.xpAttrImplied "Destination" XS.xpAnyURI
-      XP.>*< XP.xpDefault (Identified ConsentUnspecified) (XP.xpAttr "Consent" XP.xpickle)
-      XP.>*< XP.xpOption XP.xpickle
-      XP.>*< XP.xpOption XP.xpickle
-      XP.>*< XP.xpOption (xpElem "Extensions" $ XP.xpList1 xpTrimAnyElem))
-    where
-    pt (((((((i, v), t), d), c), u), g), x) = ProtocolType i v t d c u g (fromMaybe [] x) Nothing
-    tp (ProtocolType i v t d c u g [] _) = (((((((i, v), t), d), c), u), g), Nothing)
-    tp (ProtocolType i v t d c u g x _) = (((((((i, v), t), d), c), u), g), Just x)
+    xpickle =
+        XP.xpWrap (pt, tp) $
+            ( XP.xpAttr "ID" XS.xpID
+                XP.>*< XP.xpAttr "Version" XP.xpickle
+                XP.>*< XP.xpAttr "IssueInstant" XS.xpDateTime
+                XP.>*< XP.xpAttrImplied "Destination" XS.xpAnyURI
+                XP.>*< XP.xpDefault (Identified ConsentUnspecified) (XP.xpAttr "Consent" XP.xpickle)
+                XP.>*< XP.xpOption XP.xpickle
+                XP.>*< XP.xpOption XP.xpickle
+                XP.>*< XP.xpOption (xpElem "Extensions" $ XP.xpList1 xpTrimAnyElem)
+            )
+      where
+        pt (((((((i, v), t), d), c), u), g), x) = ProtocolType i v t d c u g (fromMaybe [] x) Nothing
+        tp (ProtocolType i v t d c u g [] _) = (((((((i, v), t), d), c), u), g), Nothing)
+        tp (ProtocolType i v t d c u g x _) = (((((((i, v), t), d), c), u), g), Just x)
 
 instance DS.Signable ProtocolType where
-  signature' = $(fieldLens 'protocolSignature)
-  signedID = protocolID
+    signature' = $(fieldLens 'protocolSignature)
+    signedID = protocolID
 class (XP.XmlPickler a, DS.Signable a, Show a) => SAMLProtocol a where
-  samlProtocol' :: Lens' a ProtocolType
-  isSAMLResponse :: a -> Bool
-  isSAMLResponse_ :: Proxy a -> Maybe Bool
-  isSAMLResponse_ = Just . isSAMLResponse . asProxyTypeOf undefined
+    samlProtocol' :: Lens' a ProtocolType
+    isSAMLResponse :: a -> Bool
+    isSAMLResponse_ :: Proxy a -> Maybe Bool
+    isSAMLResponse_ = Just . isSAMLResponse . asProxyTypeOf undefined
 
--- |§3.2.1
+-- | §3.2.1
 newtype RequestAbstractType = RequestAbstractType
-  { requestProtocol :: ProtocolType
-  } deriving (Eq, Show)
+    { requestProtocol :: ProtocolType
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler RequestAbstractType where
-  xpickle = [XP.biCase|p <-> RequestAbstractType p|]
-    XP.>$< XP.xpickle
+    xpickle =
+        [XP.biCase|p <-> RequestAbstractType p|]
+            XP.>$< XP.xpickle
 
-class SAMLProtocol a => SAMLRequest a where
-  samlRequest' :: Lens' a RequestAbstractType
+class (SAMLProtocol a) => SAMLRequest a where
+    samlRequest' :: Lens' a RequestAbstractType
 
 requestProtocol' :: Lens' RequestAbstractType ProtocolType
 requestProtocol' = $(fieldLens 'requestProtocol)
 
--- |§3.2.2
+-- | §3.2.2
 data StatusResponseType = StatusResponseType
-  { statusProtocol :: !ProtocolType
-  , statusInResponseTo :: Maybe XS.NCName
-  , status :: Status
-  } deriving (Eq, Show)
+    { statusProtocol :: !ProtocolType
+    , statusInResponseTo :: Maybe XS.NCName
+    , status :: Status
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler StatusResponseType where
-  xpickle = [XP.biCase|((p, r), s) <-> StatusResponseType p r s|]
-    XP.>$<  (XP.xpickle
-      XP.>*< XP.xpAttrImplied "InResponseTo" XS.xpNCName
-      XP.>*< XP.xpickle)
+    xpickle =
+        [XP.biCase|((p, r), s) <-> StatusResponseType p r s|]
+            XP.>$< ( XP.xpickle
+                        XP.>*< XP.xpAttrImplied "InResponseTo" XS.xpNCName
+                        XP.>*< XP.xpickle
+                   )
 
-class SAMLProtocol a => SAMLResponse a where
-  samlResponse' :: Lens' a StatusResponseType
+class (SAMLProtocol a) => SAMLResponse a where
+    samlResponse' :: Lens' a StatusResponseType
 
 statusProtocol' :: Lens' StatusResponseType ProtocolType
 statusProtocol' = $(fieldLens 'statusProtocol)
 
--- |§3.2.2.1
+-- | §3.2.2.1
 data Status = Status
-  { statusCode :: StatusCode
-  , statusMessage :: Maybe XString -- ^§3.2.2.3
-  , statusDetail :: Maybe Nodes -- ^§3.2.2.4
-  } deriving (Eq, Show)
+    { statusCode :: StatusCode
+    , statusMessage :: Maybe XString
+    -- ^ §3.2.2.3
+    , statusDetail :: Maybe Nodes
+    -- ^ §3.2.2.4
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler Status where
-  xpickle = xpElem "Status" $ [XP.biCase|
+    xpickle =
+        xpElem "Status" $
+            [XP.biCase|
       ((c, m), d) <-> Status c m d|]
-    XP.>$<  (XP.xpickle
-      XP.>*< XP.xpOption (xpElem "StatusMessage" XP.xpText0)
-      XP.>*< XP.xpOption (xpElem "StatusDetail" XP.xpAnyCont))
+                XP.>$< ( XP.xpickle
+                            XP.>*< XP.xpOption (xpElem "StatusMessage" XP.xpText0)
+                            XP.>*< XP.xpOption (xpElem "StatusDetail" XP.xpAnyCont)
+                       )
 
--- |§3.2.2.2
+-- | §3.2.2.2
 data StatusCode = StatusCode
-  { statusCode1 :: StatusCode1
-  , statusCodes :: [IdentifiedURI StatusCode2]
-  } deriving (Eq, Show)
+    { statusCode1 :: StatusCode1
+    , statusCodes :: [IdentifiedURI StatusCode2]
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler StatusCode where
-  xpickle = xpElem "StatusCode" $ [XP.biCase|
+    xpickle =
+        xpElem "StatusCode" $
+            [XP.biCase|
       (v, c) <-> StatusCode v c|]
-    XP.>$<  (XP.xpAttr "Value" XP.xpickle
-      XP.>*< xpStatusCodes) where
-    xpStatusCodes = [XP.biCase|
+                XP.>$< ( XP.xpAttr "Value" XP.xpickle
+                            XP.>*< xpStatusCodes
+                       )
+      where
+        xpStatusCodes =
+            [XP.biCase|
         Nothing <-> []
         Just (v, c) <-> v : c|]
-      XP.>$< XP.xpOption (xpElem "StatusCode" $
-               XP.xpAttr "Value" XP.xpickle
-        XP.>*< xpStatusCodes)
+                XP.>$< XP.xpOption
+                    ( xpElem "StatusCode" $
+                        XP.xpAttr "Value" XP.xpickle
+                            XP.>*< xpStatusCodes
+                    )
 
 data StatusCode1
-  = StatusSuccess
-  | StatusRequester
-  | StatusResponder
-  | StatusVersionMismatch
-  deriving (Eq, Bounded, Enum, Show)
+    = StatusSuccess
+    | StatusRequester
+    | StatusResponder
+    | StatusVersionMismatch
+    deriving (Eq, Bounded, Enum, Show)
 
 instance Identifiable URI StatusCode1 where
-  identifier = samlURNIdentifier "status" . f where
-    f StatusSuccess         = (SAML20, "Success")
-    f StatusRequester       = (SAML20, "Requester")
-    f StatusResponder       = (SAML20, "Responder")
-    f StatusVersionMismatch = (SAML20, "VersionMismatch")
+    identifier = samlURNIdentifier "status" . f
+      where
+        f StatusSuccess = (SAML20, "Success")
+        f StatusRequester = (SAML20, "Requester")
+        f StatusResponder = (SAML20, "Responder")
+        f StatusVersionMismatch = (SAML20, "VersionMismatch")
 instance XP.XmlPickler StatusCode1 where
-  xpickle = xpIdentifier XS.xpAnyURI "status"
+    xpickle = xpIdentifier XS.xpAnyURI "status"
 
 data StatusCode2
-  = StatusAuthnFailed
-  | StatusInvalidAttrNameOrValue
-  | StatusInvalidNameIDPolicy
-  | StatusNoAuthnContext
-  | StatusNoAvailableIDP
-  | StatusNoPassive
-  | StatusNoSupportedIDP
-  | StatusPartialLogout
-  | StatusProxyCountExceeded
-  | StatusRequestDenied
-  | StatusRequestUnsupported
-  | StatusRequestVersionDeprecated
-  | StatusRequestVersionTooHigh
-  | StatusRequestVersionTooLow
-  | StatusResourceNotRecognized
-  | StatusTooManyResponses
-  | StatusUnknownAttrProfile
-  | StatusUnknownPrincipal
-  | StatusUnsupportedBinding
-  deriving (Eq, Bounded, Enum, Show)
+    = StatusAuthnFailed
+    | StatusInvalidAttrNameOrValue
+    | StatusInvalidNameIDPolicy
+    | StatusNoAuthnContext
+    | StatusNoAvailableIDP
+    | StatusNoPassive
+    | StatusNoSupportedIDP
+    | StatusPartialLogout
+    | StatusProxyCountExceeded
+    | StatusRequestDenied
+    | StatusRequestUnsupported
+    | StatusRequestVersionDeprecated
+    | StatusRequestVersionTooHigh
+    | StatusRequestVersionTooLow
+    | StatusResourceNotRecognized
+    | StatusTooManyResponses
+    | StatusUnknownAttrProfile
+    | StatusUnknownPrincipal
+    | StatusUnsupportedBinding
+    deriving (Eq, Bounded, Enum, Show)
 
 instance Identifiable URI StatusCode2 where
-  identifier = samlURNIdentifier "status" . f where
-    f StatusAuthnFailed               = (SAML20, "AuthnFailed")
-    f StatusInvalidAttrNameOrValue    = (SAML20, "InvalidAttrNameOrValue")
-    f StatusInvalidNameIDPolicy       = (SAML20, "InvalidNameIDPolicy")
-    f StatusNoAuthnContext            = (SAML20, "NoAuthnContext")
-    f StatusNoAvailableIDP            = (SAML20, "NoAvailableIDP")
-    f StatusNoPassive                 = (SAML20, "NoPassive")
-    f StatusNoSupportedIDP            = (SAML20, "NoSupportedIDP")
-    f StatusPartialLogout             = (SAML20, "PartialLogout")
-    f StatusProxyCountExceeded        = (SAML20, "ProxyCountExceeded")
-    f StatusRequestDenied             = (SAML20, "RequestDenied")
-    f StatusRequestUnsupported        = (SAML20, "RequestUnsupported")
-    f StatusRequestVersionDeprecated  = (SAML20, "RequestVersionDeprecated")
-    f StatusRequestVersionTooHigh     = (SAML20, "RequestVersionTooHigh")
-    f StatusRequestVersionTooLow      = (SAML20, "RequestVersionTooLow")
-    f StatusResourceNotRecognized     = (SAML20, "ResourceNotRecognized")
-    f StatusTooManyResponses          = (SAML20, "TooManyResponses")
-    f StatusUnknownAttrProfile        = (SAML20, "UnknownAttrProfile")
-    f StatusUnknownPrincipal          = (SAML20, "UnknownPrincipal")
-    f StatusUnsupportedBinding        = (SAML20, "UnsupportedBinding")
+    identifier = samlURNIdentifier "status" . f
+      where
+        f StatusAuthnFailed = (SAML20, "AuthnFailed")
+        f StatusInvalidAttrNameOrValue = (SAML20, "InvalidAttrNameOrValue")
+        f StatusInvalidNameIDPolicy = (SAML20, "InvalidNameIDPolicy")
+        f StatusNoAuthnContext = (SAML20, "NoAuthnContext")
+        f StatusNoAvailableIDP = (SAML20, "NoAvailableIDP")
+        f StatusNoPassive = (SAML20, "NoPassive")
+        f StatusNoSupportedIDP = (SAML20, "NoSupportedIDP")
+        f StatusPartialLogout = (SAML20, "PartialLogout")
+        f StatusProxyCountExceeded = (SAML20, "ProxyCountExceeded")
+        f StatusRequestDenied = (SAML20, "RequestDenied")
+        f StatusRequestUnsupported = (SAML20, "RequestUnsupported")
+        f StatusRequestVersionDeprecated = (SAML20, "RequestVersionDeprecated")
+        f StatusRequestVersionTooHigh = (SAML20, "RequestVersionTooHigh")
+        f StatusRequestVersionTooLow = (SAML20, "RequestVersionTooLow")
+        f StatusResourceNotRecognized = (SAML20, "ResourceNotRecognized")
+        f StatusTooManyResponses = (SAML20, "TooManyResponses")
+        f StatusUnknownAttrProfile = (SAML20, "UnknownAttrProfile")
+        f StatusUnknownPrincipal = (SAML20, "UnknownPrincipal")
+        f StatusUnsupportedBinding = (SAML20, "UnsupportedBinding")
 
 successStatus :: Status
 successStatus = Status (StatusCode StatusSuccess []) Nothing Nothing
 
--- |§3.3.1
+-- | §3.3.1
 data AssertionIDRequest = AssertionIDRequest
-  { assertionIDRequest :: !RequestAbstractType
-  , assertionIDRequestRef :: List1 (SAML.AssertionIDRef)
-  } deriving (Eq, Show)
+    { assertionIDRequest :: !RequestAbstractType
+    , assertionIDRequestRef :: List1 (SAML.AssertionIDRef)
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler AssertionIDRequest where
-  xpickle = xpElem "AssertionIDRequest" $ [XP.biCase|
+    xpickle =
+        xpElem "AssertionIDRequest" $
+            [XP.biCase|
       (q, r) <-> AssertionIDRequest q r|]
-    XP.>$<  (XP.xpickle
-      XP.>*< xpList1 XP.xpickle)
+                XP.>$< ( XP.xpickle
+                            XP.>*< xpList1 XP.xpickle
+                       )
 instance DS.Signable AssertionIDRequest where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol AssertionIDRequest where
-  samlProtocol' = samlRequest' . requestProtocol'
-  isSAMLResponse _ = False
+    samlProtocol' = samlRequest' . requestProtocol'
+    isSAMLResponse _ = False
 instance SAMLRequest AssertionIDRequest where
-  samlRequest' = $(fieldLens 'assertionIDRequest)
+    samlRequest' = $(fieldLens 'assertionIDRequest)
 
--- |§3.3.2.1
+-- | §3.3.2.1
 data SubjectQueryAbstractType = SubjectQueryAbstractType
-  { subjectQuery :: !RequestAbstractType
-  , subjectQuerySubject :: SAML.Subject
-  } deriving (Eq, Show)
+    { subjectQuery :: !RequestAbstractType
+    , subjectQuerySubject :: SAML.Subject
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler SubjectQueryAbstractType where
-  xpickle = [XP.biCase|
+    xpickle =
+        [XP.biCase|
       (q, r) <-> SubjectQueryAbstractType q r|]
-    XP.>$<  (XP.xpickle
-      XP.>*< XP.xpickle)
+            XP.>$< ( XP.xpickle
+                        XP.>*< XP.xpickle
+                   )
 
 subjectQuery' :: Lens' SubjectQueryAbstractType RequestAbstractType
 subjectQuery' = $(fieldLens 'subjectQuery)
 
--- |§3.3.2.2
+-- | §3.3.2.2
 data AuthnQuery = AuthnQuery
-  { authnQuery :: !SubjectQueryAbstractType
-  , authnQuerySessionIndex :: Maybe XString
-  , authnQueryRequestedAuthnContext :: Maybe RequestedAuthnContext
-  } deriving (Eq, Show)
+    { authnQuery :: !SubjectQueryAbstractType
+    , authnQuerySessionIndex :: Maybe XString
+    , authnQueryRequestedAuthnContext :: Maybe RequestedAuthnContext
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler AuthnQuery where
-  xpickle = xpElem "AuthnQuery" $ [XP.biCase|
+    xpickle =
+        xpElem "AuthnQuery" $
+            [XP.biCase|
       ((q, i), c) <-> AuthnQuery q i c|]
-    XP.>$<  (XP.xpickle
-      XP.>*< XP.xpAttrImplied "SessionIndex" XS.xpString
-      XP.>*< XP.xpOption XP.xpickle)
+                XP.>$< ( XP.xpickle
+                            XP.>*< XP.xpAttrImplied "SessionIndex" XS.xpString
+                            XP.>*< XP.xpOption XP.xpickle
+                       )
 instance DS.Signable AuthnQuery where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol AuthnQuery where
-  samlProtocol' = samlRequest' . requestProtocol'
-  isSAMLResponse _ = False
+    samlProtocol' = samlRequest' . requestProtocol'
+    isSAMLResponse _ = False
 instance SAMLRequest AuthnQuery where
-  samlRequest' = authnQuery' . subjectQuery' where
-    authnQuery' = $(fieldLens 'authnQuery)
+    samlRequest' = authnQuery' . subjectQuery'
+      where
+        authnQuery' = $(fieldLens 'authnQuery)
 
--- |§3.3.2.2.1
+-- | §3.3.2.2.1
 data RequestedAuthnContext = RequestedAuthnContext
-  { requestedAuthnContextComparison :: Maybe AuthnContextComparisonType
-  , requestedAuthnContextRefs :: AuthnContextRefs
-  } deriving (Eq, Show)
+    { requestedAuthnContextComparison :: Maybe AuthnContextComparisonType
+    , requestedAuthnContextRefs :: AuthnContextRefs
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler RequestedAuthnContext where
-  xpickle = xpElem "RequestedAuthnContext" $ [XP.biCase|
+    xpickle =
+        xpElem "RequestedAuthnContext" $
+            [XP.biCase|
       (c, r) <-> RequestedAuthnContext c r|]
-    XP.>$<  (XP.xpAttrImplied "Comparison" XP.xpickle
-      XP.>*< XP.xpickle)
+                XP.>$< ( XP.xpAttrImplied "Comparison" XP.xpickle
+                            XP.>*< XP.xpickle
+                       )
 
 data AuthnContextRefs
-  = AuthnContextClassRefs (List1 AnyURI)
-  | AuthnContextDeclRefs (List1 AnyURI)
-  deriving (Eq, Show)
+    = AuthnContextClassRefs (List1 AnyURI)
+    | AuthnContextDeclRefs (List1 AnyURI)
+    deriving (Eq, Show)
 
 instance XP.XmlPickler AuthnContextRefs where
-  xpickle = [XP.biCase|
+    xpickle =
+        [XP.biCase|
       Left l <-> AuthnContextClassRefs l
       Right l <-> AuthnContextDeclRefs l|]
-    XP.>$<  (xpList1 (SAML.xpElem "AuthnContextClassRef" XS.xpAnyURI)
-      XP.>|< xpList1 (SAML.xpElem "AuthnContextDeclRef" XS.xpAnyURI))
+            XP.>$< ( xpList1 (SAML.xpElem "AuthnContextClassRef" XS.xpAnyURI)
+                        XP.>|< xpList1 (SAML.xpElem "AuthnContextDeclRef" XS.xpAnyURI)
+                   )
 
 data AuthnContextComparisonType
-  = ComparisonExact
-  | ComparisonMinimum
-  | ComparisonMaximum
-  | ComparisonBetter
-  deriving (Eq, Enum, Bounded, Show)
+    = ComparisonExact
+    | ComparisonMinimum
+    | ComparisonMaximum
+    | ComparisonBetter
+    deriving (Eq, Enum, Bounded, Show)
 
 instance Identifiable XString AuthnContextComparisonType where
-  identifier ComparisonExact = "exact"
-  identifier ComparisonMinimum = "minimum"
-  identifier ComparisonMaximum = "maximum"
-  identifier ComparisonBetter = "better"
+    identifier ComparisonExact = "exact"
+    identifier ComparisonMinimum = "minimum"
+    identifier ComparisonMaximum = "maximum"
+    identifier ComparisonBetter = "better"
 instance XP.XmlPickler AuthnContextComparisonType where
-  xpickle = xpIdentifier (XP.xpTextDT (XPS.scDT (namespaceURIString ns) "AuthnContextComparisonType" [])) "AuthnContextComparisonType"
+    xpickle = xpIdentifier (XP.xpTextDT (XPS.scDT (namespaceURIString ns) "AuthnContextComparisonType" [])) "AuthnContextComparisonType"
 
--- |§3.3.2.3
+-- | §3.3.2.3
 data AttributeQuery = AttributeQuery
-  { attributeQuery :: !SubjectQueryAbstractType
-  , attributeQueryAttributes :: [SAML.Attribute]
-  } deriving (Eq, Show)
+    { attributeQuery :: !SubjectQueryAbstractType
+    , attributeQueryAttributes :: [SAML.Attribute]
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler AttributeQuery where
-  xpickle = xpElem "AttributeQuery" $ [XP.biCase|
+    xpickle =
+        xpElem "AttributeQuery" $
+            [XP.biCase|
       (q, a) <-> AttributeQuery q a|]
-    XP.>$<  (XP.xpickle
-      XP.>*< XP.xpList XP.xpickle)
+                XP.>$< ( XP.xpickle
+                            XP.>*< XP.xpList XP.xpickle
+                       )
 instance DS.Signable AttributeQuery where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol AttributeQuery where
-  samlProtocol' = samlRequest' . requestProtocol'
-  isSAMLResponse _ = False
+    samlProtocol' = samlRequest' . requestProtocol'
+    isSAMLResponse _ = False
 instance SAMLRequest AttributeQuery where
-  samlRequest' = attributeQuery' . subjectQuery' where
-    attributeQuery' = $(fieldLens 'attributeQuery)
+    samlRequest' = attributeQuery' . subjectQuery'
+      where
+        attributeQuery' = $(fieldLens 'attributeQuery)
 
--- |§3.3.2.4
+-- | §3.3.2.4
 data AuthzDecisionQuery = AuthzDecisionQuery
-  { authzDecisionQuery :: !SubjectQueryAbstractType
-  , authzDecisionQueryResource :: AnyURI
-  , authzDecisionQueryActions :: [SAML.Action]
-  , authzDecisionQueryEvidence :: SAML.Evidence
-  } deriving (Eq, Show)
+    { authzDecisionQuery :: !SubjectQueryAbstractType
+    , authzDecisionQueryResource :: AnyURI
+    , authzDecisionQueryActions :: [SAML.Action]
+    , authzDecisionQueryEvidence :: SAML.Evidence
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler AuthzDecisionQuery where
-  xpickle = xpElem "AuthzDecisionQuery" $ [XP.biCase|
+    xpickle =
+        xpElem "AuthzDecisionQuery" $
+            [XP.biCase|
       (((q, r), a), e) <-> AuthzDecisionQuery q r a e|]
-    XP.>$<  (XP.xpickle
-      XP.>*< XP.xpAttr "Resource" XS.xpAnyURI
-      XP.>*< XP.xpList XP.xpickle
-      XP.>*< XP.xpickle)
+                XP.>$< ( XP.xpickle
+                            XP.>*< XP.xpAttr "Resource" XS.xpAnyURI
+                            XP.>*< XP.xpList XP.xpickle
+                            XP.>*< XP.xpickle
+                       )
 instance DS.Signable AuthzDecisionQuery where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol AuthzDecisionQuery where
-  samlProtocol' = samlRequest' . requestProtocol'
-  isSAMLResponse _ = False
+    samlProtocol' = samlRequest' . requestProtocol'
+    isSAMLResponse _ = False
 instance SAMLRequest AuthzDecisionQuery where
-  samlRequest' = authzDecisionQuery' . subjectQuery' where
-    authzDecisionQuery' = $(fieldLens 'authzDecisionQuery)
+    samlRequest' = authzDecisionQuery' . subjectQuery'
+      where
+        authzDecisionQuery' = $(fieldLens 'authzDecisionQuery)
 
--- |§3.3.3
+-- | §3.3.3
 data Response = Response
-  { response :: !StatusResponseType
-  , responseAssertions :: [SAML.PossiblyEncrypted SAML.Assertion]
-  } deriving (Eq, Show)
+    { response :: !StatusResponseType
+    , responseAssertions :: [SAML.PossiblyEncrypted SAML.Assertion]
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler Response where
-  xpickle = xpElem "Response" $ [XP.biCase|
+    xpickle =
+        xpElem "Response" $
+            [XP.biCase|
       (r, a) <-> Response r a|]
-    XP.>$<  (XP.xpickle
-      XP.>*< XP.xpList SAML.xpPossiblyEncrypted)
+                XP.>$< ( XP.xpickle
+                            XP.>*< XP.xpList SAML.xpPossiblyEncrypted
+                       )
 instance DS.Signable Response where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol Response where
-  samlProtocol' = samlResponse' . statusProtocol'
-  isSAMLResponse _ = True
+    samlProtocol' = samlResponse' . statusProtocol'
+    isSAMLResponse _ = True
 instance SAMLResponse Response where
-  samlResponse' = $(fieldLens 'response)
+    samlResponse' = $(fieldLens 'response)
 
--- |§3.4.1
+-- | §3.4.1
 data AuthnRequest = AuthnRequest
-  { authnRequest :: !RequestAbstractType
-  , authnRequestForceAuthn :: XS.Boolean
-  , authnRequestIsPassive :: XS.Boolean
-  , authnRequestAssertionConsumerService :: AssertionConsumerService
-  , authnRequestAssertionConsumingServiceIndex :: Maybe XS.UnsignedShort
-  , authnRequestProviderName :: Maybe XString
-  , authnRequestSubject :: Maybe SAML.Subject
-  , authnRequestNameIDPolicy :: Maybe NameIDPolicy
-  , authnRequestConditions :: Maybe SAML.Conditions
-  , authnRequestRequestedAuthnContext :: Maybe RequestedAuthnContext
-  , authnRequestScoping :: Maybe Scoping
-  } deriving (Eq, Show)
+    { authnRequest :: !RequestAbstractType
+    , authnRequestForceAuthn :: XS.Boolean
+    , authnRequestIsPassive :: XS.Boolean
+    , authnRequestAssertionConsumerService :: AssertionConsumerService
+    , authnRequestAssertionConsumingServiceIndex :: Maybe XS.UnsignedShort
+    , authnRequestProviderName :: Maybe XString
+    , authnRequestSubject :: Maybe SAML.Subject
+    , authnRequestNameIDPolicy :: Maybe NameIDPolicy
+    , authnRequestConditions :: Maybe SAML.Conditions
+    , authnRequestRequestedAuthnContext :: Maybe RequestedAuthnContext
+    , authnRequestScoping :: Maybe Scoping
+    }
+    deriving (Eq, Show)
 
 data AssertionConsumerService
-  = AssertionConsumerServiceIndex XS.UnsignedShort
-  | AssertionConsumerServiceURL  -- this looks very much like it wants to be an Either?
-    { authnRequestAssertionConsumerServiceURL :: Maybe AnyURI
-    , authnRequestProtocolBinding :: Maybe (IdentifiedURI Binding)
-    }
-  deriving (Eq, Show)
+    = AssertionConsumerServiceIndex XS.UnsignedShort
+    | AssertionConsumerServiceURL -- this looks very much like it wants to be an Either?
+        { authnRequestAssertionConsumerServiceURL :: Maybe AnyURI
+        , authnRequestProtocolBinding :: Maybe (IdentifiedURI Binding)
+        }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler AuthnRequest where
-  xpickle = xpElem "AuthnRequest" $ [XP.biCase|
+    xpickle =
+        xpElem "AuthnRequest" $
+            [XP.biCase|
       ((((((((((q, f), p), Left i), g), n), s), np), c), r), sc) <-> AuthnRequest q f p (AssertionConsumerServiceIndex i) g n s np c r sc
       ((((((((((q, f), p), Right (u, b)), g), n), s), np), c), r), sc) <-> AuthnRequest q f p (AssertionConsumerServiceURL u b) g n s np c r sc|]
-    XP.>$<  (XP.xpickle
-      XP.>*< XP.xpDefault False (XP.xpAttr "ForceAuthn" XS.xpBoolean)
-      XP.>*< XP.xpDefault False (XP.xpAttr "IsPassive" XS.xpBoolean)
-      XP.>*<  (XP.xpAttr "AssertionConsumerServiceIndex" XS.xpUnsignedShort
-        XP.>|<  (XP.xpAttrImplied "AssertionConsumerServiceURL" XS.xpAnyURI
-          XP.>*< XP.xpAttrImplied "ProtocolBinding" XP.xpickle))
-      XP.>*< XP.xpAttrImplied "AttributeConsumingServiceIndex" XS.xpUnsignedShort
-      XP.>*< XP.xpAttrImplied "ProviderName" XS.xpString
-      XP.>*< XP.xpOption XP.xpickle
-      XP.>*< XP.xpOption XP.xpickle
-      XP.>*< XP.xpOption XP.xpickle
-      XP.>*< XP.xpOption XP.xpickle
-      XP.>*< XP.xpOption XP.xpickle)
+                XP.>$< ( XP.xpickle
+                            XP.>*< XP.xpDefault False (XP.xpAttr "ForceAuthn" XS.xpBoolean)
+                            XP.>*< XP.xpDefault False (XP.xpAttr "IsPassive" XS.xpBoolean)
+                            XP.>*< ( XP.xpAttr "AssertionConsumerServiceIndex" XS.xpUnsignedShort
+                                        XP.>|< ( XP.xpAttrImplied "AssertionConsumerServiceURL" XS.xpAnyURI
+                                                    XP.>*< XP.xpAttrImplied "ProtocolBinding" XP.xpickle
+                                               )
+                                   )
+                            XP.>*< XP.xpAttrImplied "AttributeConsumingServiceIndex" XS.xpUnsignedShort
+                            XP.>*< XP.xpAttrImplied "ProviderName" XS.xpString
+                            XP.>*< XP.xpOption XP.xpickle
+                            XP.>*< XP.xpOption XP.xpickle
+                            XP.>*< XP.xpOption XP.xpickle
+                            XP.>*< XP.xpOption XP.xpickle
+                            XP.>*< XP.xpOption XP.xpickle
+                       )
 instance DS.Signable AuthnRequest where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol AuthnRequest where
-  samlProtocol' = samlRequest' . requestProtocol'
-  isSAMLResponse _ = False
+    samlProtocol' = samlRequest' . requestProtocol'
+    isSAMLResponse _ = False
 instance SAMLRequest AuthnRequest where
-  samlRequest' = $(fieldLens 'authnRequest)
+    samlRequest' = $(fieldLens 'authnRequest)
 
--- |§3.4.1.1
+-- | §3.4.1.1
 data NameIDPolicy = NameIDPolicy
-  { nameIDPolicyFormat :: IdentifiedURI NameIDFormat
-  , nameIDPolicySPNameQualifier :: Maybe XString
-  , nameIDPolicyAllowCreate :: Bool
-  } deriving (Eq, Show)
+    { nameIDPolicyFormat :: IdentifiedURI NameIDFormat
+    , nameIDPolicySPNameQualifier :: Maybe XString
+    , nameIDPolicyAllowCreate :: Bool
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler NameIDPolicy where
-  xpickle = xpElem "NameIDPolicy" $ [XP.biCase|
+    xpickle =
+        xpElem "NameIDPolicy" $
+            [XP.biCase|
       ((f, q), c) <-> NameIDPolicy f q c|]
-    XP.>$<  (XP.xpDefault (Identified NameIDFormatUnspecified) (XP.xpAttr "Format" XP.xpickle)
-      XP.>*< XP.xpAttrImplied "SPNameQualifier" XS.xpString
-      XP.>*< XP.xpDefault False (XP.xpAttr "AllowCreate" XS.xpBoolean))
+                XP.>$< ( XP.xpDefault (Identified NameIDFormatUnspecified) (XP.xpAttr "Format" XP.xpickle)
+                            XP.>*< XP.xpAttrImplied "SPNameQualifier" XS.xpString
+                            XP.>*< XP.xpDefault False (XP.xpAttr "AllowCreate" XS.xpBoolean)
+                       )
 
--- |§3.4.1.2
+-- | §3.4.1.2
 data Scoping = Scoping
-  { scopingProxyCount :: Maybe XS.NonNegativeInteger
-  , scopingIDPList :: Maybe IDPList
-  , scopingRequesterID :: [AnyURI]
-  } deriving (Eq, Show)
+    { scopingProxyCount :: Maybe XS.NonNegativeInteger
+    , scopingIDPList :: Maybe IDPList
+    , scopingRequesterID :: [AnyURI]
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler Scoping where
-  xpickle = xpElem "Scoping" $ [XP.biCase|
+    xpickle =
+        xpElem "Scoping" $
+            [XP.biCase|
       ((c, i), r) <-> Scoping c i r|]
-    XP.>$<  (XP.xpAttrImplied "ProxyCount" XS.xpNonNegativeInteger
-      XP.>*< XP.xpOption XP.xpickle
-      XP.>*< XP.xpList (xpElem "RequesterID" XS.xpAnyURI))
+                XP.>$< ( XP.xpAttrImplied "ProxyCount" XS.xpNonNegativeInteger
+                            XP.>*< XP.xpOption XP.xpickle
+                            XP.>*< XP.xpList (xpElem "RequesterID" XS.xpAnyURI)
+                       )
 
--- |§3.4.1.3
+-- | §3.4.1.3
 data IDPList = IDPList
-  { idpList :: List1 IDPEntry
-  , idpGetComplete :: Maybe AnyURI
-  } deriving (Eq, Show)
+    { idpList :: List1 IDPEntry
+    , idpGetComplete :: Maybe AnyURI
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler IDPList where
-  xpickle = xpElem "IDPList" $ [XP.biCase|
+    xpickle =
+        xpElem "IDPList" $
+            [XP.biCase|
       (l, c) <-> IDPList l c|]
-    XP.>$<  (xpList1 XP.xpickle
-      XP.>*< XP.xpOption (xpElem "GetComplete" XS.xpAnyURI))
+                XP.>$< ( xpList1 XP.xpickle
+                            XP.>*< XP.xpOption (xpElem "GetComplete" XS.xpAnyURI)
+                       )
 
--- |§3.4.1.3.1
+-- | §3.4.1.3.1
 data IDPEntry = IDPEntry
-  { idpEntryProviderID :: AnyURI
-  , idpEntryName :: Maybe XString
-  , idpEntryLoc :: Maybe AnyURI
-  } deriving (Eq, Show)
+    { idpEntryProviderID :: AnyURI
+    , idpEntryName :: Maybe XString
+    , idpEntryLoc :: Maybe AnyURI
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler IDPEntry where
-  xpickle = xpElem "IDPEntry" $ [XP.biCase|
+    xpickle =
+        xpElem "IDPEntry" $
+            [XP.biCase|
       ((p, n), l) <-> IDPEntry p n l|]
-    XP.>$<  (XP.xpAttr "ProviderID" XS.xpAnyURI
-      XP.>*< XP.xpAttrImplied "Name" XS.xpString
-      XP.>*< XP.xpAttrImplied "Loc" XS.xpAnyURI)
+                XP.>$< ( XP.xpAttr "ProviderID" XS.xpAnyURI
+                            XP.>*< XP.xpAttrImplied "Name" XS.xpString
+                            XP.>*< XP.xpAttrImplied "Loc" XS.xpAnyURI
+                       )
 
--- |§3.5.1
+-- | §3.5.1
 data ArtifactResolve = ArtifactResolve
-  { artifactResolve :: !RequestAbstractType
-  , artifactResolveArtifact :: XString
-  } deriving (Eq, Show)
+    { artifactResolve :: !RequestAbstractType
+    , artifactResolveArtifact :: XString
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler ArtifactResolve where
-  xpickle = xpElem "ArtifactResolve" $ [XP.biCase|
+    xpickle =
+        xpElem "ArtifactResolve" $
+            [XP.biCase|
       (r, a) <-> ArtifactResolve r a|]
-    XP.>$<  (XP.xpickle
-      XP.>*< xpElem "Artifact" XS.xpString)
+                XP.>$< ( XP.xpickle
+                            XP.>*< xpElem "Artifact" XS.xpString
+                       )
 instance DS.Signable ArtifactResolve where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol ArtifactResolve where
-  samlProtocol' = samlRequest' . requestProtocol'
-  isSAMLResponse _ = False
+    samlProtocol' = samlRequest' . requestProtocol'
+    isSAMLResponse _ = False
 instance SAMLRequest ArtifactResolve where
-  samlRequest' = $(fieldLens 'artifactResolve)
+    samlRequest' = $(fieldLens 'artifactResolve)
 
--- |§3.5.2
+-- | §3.5.2
 data ArtifactResponse = ArtifactResponse
-  { artifactResponse :: !StatusResponseType
-  , artifactResponseMessage :: Maybe Node
-  } deriving (Eq, Show)
+    { artifactResponse :: !StatusResponseType
+    , artifactResponseMessage :: Maybe Node
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler ArtifactResponse where
-  xpickle = xpElem "ArtifactResponse" $ [XP.biCase|
+    xpickle =
+        xpElem "ArtifactResponse" $
+            [XP.biCase|
       (r, a) <-> ArtifactResponse r a|]
-    XP.>$<  (XP.xpickle
-      XP.>*< XP.xpOption xpTrimAnyElem)
+                XP.>$< ( XP.xpickle
+                            XP.>*< XP.xpOption xpTrimAnyElem
+                       )
 instance DS.Signable ArtifactResponse where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol ArtifactResponse where
-  samlProtocol' = samlResponse' . statusProtocol'
-  isSAMLResponse _ = True
+    samlProtocol' = samlResponse' . statusProtocol'
+    isSAMLResponse _ = True
 instance SAMLResponse ArtifactResponse where
-  samlResponse' = $(fieldLens 'artifactResponse)
+    samlResponse' = $(fieldLens 'artifactResponse)
 
--- |§3.6.1
+-- | §3.6.1
 data ManageNameIDRequest = ManageNameIDRequest
-  { manageNameIDRequest :: !RequestAbstractType
-  , manageNameIDRequestNameID :: SAML.PossiblyEncrypted SAML.NameID
-  , manageNameIDRequestNewID :: Maybe (SAML.PossiblyEncrypted NewID)
-  } deriving (Eq, Show)
+    { manageNameIDRequest :: !RequestAbstractType
+    , manageNameIDRequestNameID :: SAML.PossiblyEncrypted SAML.NameID
+    , manageNameIDRequestNewID :: Maybe (SAML.PossiblyEncrypted NewID)
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler ManageNameIDRequest where
-  xpickle = xpElem "ManageNameIDRequest" $ [XP.biCase|
+    xpickle =
+        xpElem "ManageNameIDRequest" $
+            [XP.biCase|
       ((r, o), Left n) <-> ManageNameIDRequest r o (Just n)
       ((r, o), Right ()) <-> ManageNameIDRequest r o Nothing|]
-    XP.>$<  (XP.xpickle
-      XP.>*< SAML.xpPossiblyEncrypted
-      XP.>*< (SAML.xpPossiblyEncrypted
-        XP.>|< xpElem "Terminate" XP.xpUnit))
+                XP.>$< ( XP.xpickle
+                            XP.>*< SAML.xpPossiblyEncrypted
+                            XP.>*< ( SAML.xpPossiblyEncrypted
+                                        XP.>|< xpElem "Terminate" XP.xpUnit
+                                   )
+                       )
 instance DS.Signable ManageNameIDRequest where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol ManageNameIDRequest where
-  samlProtocol' = samlRequest' . requestProtocol'
-  isSAMLResponse _ = False
+    samlProtocol' = samlRequest' . requestProtocol'
+    isSAMLResponse _ = False
 instance SAMLRequest ManageNameIDRequest where
-  samlRequest' = $(fieldLens 'manageNameIDRequest)
+    samlRequest' = $(fieldLens 'manageNameIDRequest)
 
-newtype NewID = NewID{ newID :: XString }
-  deriving (Eq, Show)
+newtype NewID = NewID {newID :: XString}
+    deriving (Eq, Show)
 
 instance XP.XmlPickler NewID where
-  xpickle = xpElem "NewID" $ [XP.biCase|
+    xpickle =
+        xpElem "NewID" $
+            [XP.biCase|
       n <-> NewID n|]
-    XP.>$< XS.xpString
+                XP.>$< XS.xpString
 
 type NewEncryptedID = SAML.EncryptedElement NewID
 
 instance XP.XmlPickler NewEncryptedID where
-  xpickle = xpElem "NewEncryptedID" SAML.xpEncryptedElement
+    xpickle = xpElem "NewEncryptedID" SAML.xpEncryptedElement
 
--- |§3.6.2
+-- | §3.6.2
 newtype ManageNameIDResponse = ManageNameIDResponse
-  { manageNameIDResponse :: StatusResponseType }
-  deriving (Eq, Show)
+    {manageNameIDResponse :: StatusResponseType}
+    deriving (Eq, Show)
 
 instance XP.XmlPickler ManageNameIDResponse where
-  xpickle = xpElem "ManageNameIDResponse" $ [XP.biCase|
+    xpickle =
+        xpElem "ManageNameIDResponse" $
+            [XP.biCase|
       r <-> ManageNameIDResponse r|]
-    XP.>$< XP.xpickle
+                XP.>$< XP.xpickle
 instance DS.Signable ManageNameIDResponse where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol ManageNameIDResponse where
-  samlProtocol' = samlResponse' . statusProtocol'
-  isSAMLResponse _ = True
+    samlProtocol' = samlResponse' . statusProtocol'
+    isSAMLResponse _ = True
 instance SAMLResponse ManageNameIDResponse where
-  samlResponse' = $(fieldLens 'manageNameIDResponse)
+    samlResponse' = $(fieldLens 'manageNameIDResponse)
 
--- |§3.7.1
+-- | §3.7.1
 data LogoutRequest = LogoutRequest
-  { logoutRequest :: !RequestAbstractType
-  , logoutRequestReason :: Maybe (Identified XString LogoutReason)
-  , logoutRequestNotOnOrAfter :: Maybe XS.DateTime
-  , logoutRequestIdentifier :: SAML.PossiblyEncrypted SAML.Identifier
-  , logoutRequestSessionIndex :: [XString]
-  } deriving (Eq, Show)
+    { logoutRequest :: !RequestAbstractType
+    , logoutRequestReason :: Maybe (Identified XString LogoutReason)
+    , logoutRequestNotOnOrAfter :: Maybe XS.DateTime
+    , logoutRequestIdentifier :: SAML.PossiblyEncrypted SAML.Identifier
+    , logoutRequestSessionIndex :: [XString]
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler LogoutRequest where
-  xpickle = xpElem "LogoutRequest" $ [XP.biCase|
+    xpickle =
+        xpElem "LogoutRequest" $
+            [XP.biCase|
       ((((q, r), t), i), s) <-> LogoutRequest q r t i s|]
-    XP.>$<  (XP.xpickle
-      XP.>*< XP.xpAttrImplied "Reason" XP.xpickle
-      XP.>*< XP.xpAttrImplied "NotOnOrAfter" XS.xpDateTime
-      XP.>*< SAML.xpPossiblyEncrypted
-      XP.>*< XP.xpList (xpElem "SessionIndex" XS.xpString))
+                XP.>$< ( XP.xpickle
+                            XP.>*< XP.xpAttrImplied "Reason" XP.xpickle
+                            XP.>*< XP.xpAttrImplied "NotOnOrAfter" XS.xpDateTime
+                            XP.>*< SAML.xpPossiblyEncrypted
+                            XP.>*< XP.xpList (xpElem "SessionIndex" XS.xpString)
+                       )
 instance DS.Signable LogoutRequest where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol LogoutRequest where
-  samlProtocol' = samlRequest' . requestProtocol'
-  isSAMLResponse _ = False
+    samlProtocol' = samlRequest' . requestProtocol'
+    isSAMLResponse _ = False
 instance SAMLRequest LogoutRequest where
-  samlRequest' = $(fieldLens 'logoutRequest)
+    samlRequest' = $(fieldLens 'logoutRequest)
 
--- |§3.7.2
+-- | §3.7.2
 newtype LogoutResponse = LogoutResponse
-  { logoutResponse :: StatusResponseType }
-  deriving (Eq, Show)
+    {logoutResponse :: StatusResponseType}
+    deriving (Eq, Show)
 
 instance XP.XmlPickler LogoutResponse where
-  xpickle = xpElem "LogoutResponse" $ [XP.biCase|
+    xpickle =
+        xpElem "LogoutResponse" $
+            [XP.biCase|
       r <-> LogoutResponse r|]
-    XP.>$< XP.xpickle
+                XP.>$< XP.xpickle
 instance DS.Signable LogoutResponse where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol LogoutResponse where
-  samlProtocol' = samlResponse' . statusProtocol'
-  isSAMLResponse _ = True
+    samlProtocol' = samlResponse' . statusProtocol'
+    isSAMLResponse _ = True
 instance SAMLResponse LogoutResponse where
-  samlResponse' = $(fieldLens 'logoutResponse)
+    samlResponse' = $(fieldLens 'logoutResponse)
 
--- |§3.7.3
+-- | §3.7.3
 data LogoutReason
-  = LogoutReasonUser
-  | LogoutReasonAdmin
-  deriving (Eq, Enum, Bounded, Show)
+    = LogoutReasonUser
+    | LogoutReasonAdmin
+    deriving (Eq, Enum, Bounded, Show)
 
 instance Identifiable XString LogoutReason where
-  identifier = show . samlURNIdentifier "logout" . f where
-    f LogoutReasonUser  = (SAML20, "user")
-    f LogoutReasonAdmin = (SAML20, "admin")
+    identifier = show . samlURNIdentifier "logout" . f
+      where
+        f LogoutReasonUser = (SAML20, "user")
+        f LogoutReasonAdmin = (SAML20, "admin")
 instance XP.XmlPickler (Identified XString LogoutReason) where
-  xpickle = xpIdentified XS.xpString
+    xpickle = xpIdentified XS.xpString
 
--- |§3.8.1
+-- | §3.8.1
 data NameIDMappingRequest = NameIDMappingRequest
-  { nameIDMappingRequest :: !RequestAbstractType
-  , nameIDMappingRequestIdentifier :: SAML.PossiblyEncrypted SAML.Identifier
-  , nameIDMappingRequestPolicy :: NameIDPolicy
-  } deriving (Eq, Show)
+    { nameIDMappingRequest :: !RequestAbstractType
+    , nameIDMappingRequestIdentifier :: SAML.PossiblyEncrypted SAML.Identifier
+    , nameIDMappingRequestPolicy :: NameIDPolicy
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler NameIDMappingRequest where
-  xpickle = xpElem "NameIDMappingRequest" $ [XP.biCase|
+    xpickle =
+        xpElem "NameIDMappingRequest" $
+            [XP.biCase|
       ((r, i), p) <-> NameIDMappingRequest r i p|]
-    XP.>$<  (XP.xpickle
-      XP.>*< SAML.xpPossiblyEncrypted
-      XP.>*< XP.xpickle)
+                XP.>$< ( XP.xpickle
+                            XP.>*< SAML.xpPossiblyEncrypted
+                            XP.>*< XP.xpickle
+                       )
 instance DS.Signable NameIDMappingRequest where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol NameIDMappingRequest where
-  samlProtocol' = samlRequest' . requestProtocol'
-  isSAMLResponse _ = False
+    samlProtocol' = samlRequest' . requestProtocol'
+    isSAMLResponse _ = False
 instance SAMLRequest NameIDMappingRequest where
-  samlRequest' = $(fieldLens 'nameIDMappingRequest)
+    samlRequest' = $(fieldLens 'nameIDMappingRequest)
 
--- |§3.8.2
+-- | §3.8.2
 data NameIDMappingResponse = NameIDMappingResponse
-  { nameIDMappingResponse :: !StatusResponseType
-  , nameIDMappingResponseNameID :: SAML.PossiblyEncrypted SAML.NameID
-  } deriving (Eq, Show)
+    { nameIDMappingResponse :: !StatusResponseType
+    , nameIDMappingResponseNameID :: SAML.PossiblyEncrypted SAML.NameID
+    }
+    deriving (Eq, Show)
 
 instance XP.XmlPickler NameIDMappingResponse where
-  xpickle = xpElem "NameIDMappingResponse" $ [XP.biCase|
+    xpickle =
+        xpElem "NameIDMappingResponse" $
+            [XP.biCase|
       (r, a) <-> NameIDMappingResponse r a|]
-    XP.>$<  (XP.xpickle
-      XP.>*< SAML.xpPossiblyEncrypted)
+                XP.>$< ( XP.xpickle
+                            XP.>*< SAML.xpPossiblyEncrypted
+                       )
 instance DS.Signable NameIDMappingResponse where
-  signature' = samlProtocol' . DS.signature'
-  signedID = protocolID . view samlProtocol'
+    signature' = samlProtocol' . DS.signature'
+    signedID = protocolID . view samlProtocol'
 instance SAMLProtocol NameIDMappingResponse where
-  samlProtocol' = samlResponse' . statusProtocol'
-  isSAMLResponse _ = True
+    samlProtocol' = samlResponse' . statusProtocol'
+    isSAMLResponse _ = True
 instance SAMLResponse NameIDMappingResponse where
-  samlResponse' = $(fieldLens 'nameIDMappingResponse)
+    samlResponse' = $(fieldLens 'nameIDMappingResponse)
 
 data AnyRequest
-  = RequestAssertionIDRequest   !AssertionIDRequest
-  | RequestAuthnQuery           !AuthnQuery
-  | RequestAttributeQuery       !AttributeQuery
-  | RequestAuthzDecisionQuery   !AuthzDecisionQuery
-  | RequestAuthnRequest         !AuthnRequest
-  | RequestArtifactResolve      !ArtifactResolve
-  | RequestManageNameIDRequest  !ManageNameIDRequest
-  | RequestLogoutRequest        !LogoutRequest
-  | RequestNameIDMappingRequest !NameIDMappingRequest
-  deriving (Eq, Show)
+    = RequestAssertionIDRequest !AssertionIDRequest
+    | RequestAuthnQuery !AuthnQuery
+    | RequestAttributeQuery !AttributeQuery
+    | RequestAuthzDecisionQuery !AuthzDecisionQuery
+    | RequestAuthnRequest !AuthnRequest
+    | RequestArtifactResolve !ArtifactResolve
+    | RequestManageNameIDRequest !ManageNameIDRequest
+    | RequestLogoutRequest !LogoutRequest
+    | RequestNameIDMappingRequest !NameIDMappingRequest
+    deriving (Eq, Show)
 
 instance XP.XmlPickler AnyRequest where
-  xpickle = [XP.biCase|
+    xpickle =
+        [XP.biCase|
       Left (Left (Left (Left (Left (Left (Left (Left r))))))) <-> RequestAssertionIDRequest r
       Left (Left (Left (Left (Left (Left (Left (Right r))))))) <-> RequestAuthnQuery r
       Left (Left (Left (Left (Left (Left (Right r)))))) <-> RequestAttributeQuery r

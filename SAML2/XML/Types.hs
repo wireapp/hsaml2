@@ -21,10 +21,10 @@ xpList1 f = [XP.biCase|a:l <-> a:|l|] XP.>$< XP.xpList1 f
 type QName = HXT.QName
 
 data Namespace = Namespace
-  { namespacePrefix :: !String
-  , namespaceURI :: !URI
-  , namespaceURIString :: !String
-  }
+    { namespacePrefix :: !String
+    , namespaceURI :: !URI
+    , namespaceURIString :: !String
+    }
 
 mkNamespace :: String -> URI -> Namespace
 mkNamespace p u = Namespace p u $ uriToString id u ""

@@ -32,10 +32,9 @@ xpElem = xpTrimElemNS ns
 
 -- | §2.2.1
 data BaseID id = BaseID
-  { baseNameQualifier :: Maybe XString,
-    baseSPNameQualifier :: Maybe XString,
-    baseID :: !id
-  }
+  { baseNameQualifier :: Maybe XString
+    , baseSPNameQualifier :: Maybe XString
+    , baseID :: !id }
   deriving (Eq, Show)
 
 xpBaseID :: XP.PU id -> XP.PU (BaseID id)
