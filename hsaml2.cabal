@@ -13,19 +13,18 @@ cabal-version:       >=1.10
 tested-with:         GHC == 8.0.2 || == 8.2.2 || == 8.4.4 || == 8.6.5 || == 8.8.3
 
 extra-source-files:
-  test/Metadata/metadata-idp.xml
-  test/Metadata/metadata-nyu.xml
-  test/Metadata/metadata-osf.xml
-  test/Metadata/metadata-sp.xml
-  test/XML/encryption-example.xml
-  test/XML/noncanonical1.xml
-  test/XML/noncanonical2.xml
-  test/XML/noncanonical3.xml
-  test/XML/noncanonical4.xml
-  test/XML/noncanonical5.xml
-  test/XML/noncanonical6.xml
-  test/XML/signature-example.xml
-  test/XML/world.txt
+    test/Metadata/metadata-idp.xml
+    test/Metadata/metadata-nyu.xml
+    test/Metadata/metadata-osf.xml
+    test/Metadata/metadata-sp.xml
+    test/XML/encryption-example.xml
+    test/XML/noncanonical1.xml
+    test/XML/noncanonical2.xml
+    test/XML/noncanonical3.xml
+    test/XML/noncanonical4.xml
+    test/XML/noncanonical6.xml
+    test/XML/signature-example.xml
+    test/XML/world.txt
 
 flag crypton
   description: Use cryton instead of cryptonite
@@ -37,33 +36,33 @@ source-repository head
 
 library
   exposed-modules:
-    SAML2
-    SAML2.XML
-    SAML2.XML.Schema
-    SAML2.XML.Schema.Datatypes
-    SAML2.XML.Canonical
-    SAML2.XML.ASN1
-    SAML2.XML.Signature
-    SAML2.XML.Signature.Types
-    SAML2.XML.Encryption
-    SAML2.XML.Types
-    SAML2.Core
-    SAML2.Core.Namespaces
-    SAML2.Core.Datatypes
-    SAML2.Core.Assertions
-    SAML2.Core.Protocols
-    SAML2.Core.Versioning
-    SAML2.Core.Signature
-    SAML2.Core.Identifiers
-    SAML2.Profiles
-    SAML2.Profiles.ConfirmationMethod
-    SAML2.Bindings
-    SAML2.Bindings.General
-    SAML2.Bindings.Identifiers
-    SAML2.Bindings.HTTPRedirect
-    SAML2.Bindings.HTTPPOST
-    SAML2.Metadata
-    SAML2.Metadata.Metadata
+      SAML2
+      SAML2.Bindings
+      SAML2.Bindings.General
+      SAML2.Bindings.HTTPPOST
+      SAML2.Bindings.HTTPRedirect
+      SAML2.Bindings.Identifiers
+      SAML2.Core
+      SAML2.Core.Assertions
+      SAML2.Core.Datatypes
+      SAML2.Core.Identifiers
+      SAML2.Core.Namespaces
+      SAML2.Core.Protocols
+      SAML2.Core.Signature
+      SAML2.Core.Versioning
+      SAML2.Metadata
+      SAML2.Metadata.Metadata
+      SAML2.Profiles
+      SAML2.Profiles.ConfirmationMethod
+      SAML2.XML
+      SAML2.XML.ASN1
+      SAML2.XML.Canonical
+      SAML2.XML.Encryption
+      SAML2.XML.Schema
+      SAML2.XML.Schema.Datatypes
+      SAML2.XML.Signature
+      SAML2.XML.Signature.Types
+      SAML2.XML.Types
   other-modules:
     SAML2.Lens
     SAML2.XML.LibXML2
@@ -104,8 +103,39 @@ library
   pkgconfig-depends: libxml-2.0
   default-language:    Haskell2010
   ghc-options: -Wall
+  c-sources:
+      SAML2/XML/libxml2_stub.c
+  pkgconfig-depends:
+      libxml-2.0
+  build-depends:
+      asn1-encoding
+    , asn1-types >=0.2
+    , base >=4.8 && <5
+    , base64-bytestring
+    , bytestring
+    , crypton
+    , crypton-x509
+    , data-default
+    , http-types
+    , hxt
+    , hxt-charproperties
+    , hxt-unicode
+    , invertible
+    , invertible-hxt
+    , lens
+    , memory
+    , mtl
+    , network-uri
+    , process
+    , semigroups
+    , silently
+    , string-conversions
+    , template-haskell
+    , time
+    , utf8-string
+    , zlib
 
-test-suite tests
+test-suite spec
   type: exitcode-stdio-1.0
   hs-source-dirs: test
   main-is: Main.hs

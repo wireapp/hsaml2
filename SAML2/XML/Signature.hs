@@ -1,5 +1,11 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE CPP                 #-}
 -- |
 -- XML Signature Syntax and Processing
 --
@@ -13,11 +19,20 @@ module SAML2.XML.Signature
   , signBase64
   , verifyBase64
   , generateSignature
-  , verifySignature
+  , verifySignatureIncomplete, SignatureError(..)
+  , verifySignatureLegacy
+  , applyCanonicalization
+  , applyTransforms
   ) where
 
+import GHC.Stack
+import Control.Exception (handle)
+import System.IO.Silently (hCapture)
+import System.IO (stdout, stderr)
 import Control.Applicative ((<|>))
-import Control.Monad (guard, (<=<))
+import Control.Exception (SomeException, try, throwIO, ErrorCall(ErrorCall))
+import Control.Monad ((<=<))
+import Control.Monad.Except
 import Crypto.Number.Basic (numBytes)
 import Crypto.Number.Serialize (i2ospOf_, os2ip)
 import Crypto.Hash (hashlazy, SHA1(..), SHA256(..), SHA512(..), RIPEMD160(..))
@@ -29,8 +44,11 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Maybe (isJust)
-import Data.Monoid ((<>))
+import Data.Either (isRight, lefts)
+import Data.List (intercalate)
+import Data.Semigroup (Semigroup(..))
+import Data.String.Conversions hiding ((<>))
+import Data.Monoid (Monoid(..))
 import qualified Data.X509 as X509
 import Network.URI (URI(..))
 import qualified Text.XML.HXT.Core as HXT
@@ -42,6 +60,7 @@ import SAML2.XML
 import SAML2.XML.Canonical
 import qualified Text.XML.HXT.Arrow.Pickle.Xml.Invertible as XP
 import SAML2.XML.Signature.Types
+import SAML2.XML.Schema.Datatypes (Base64Binary)
 
 isDSElem :: HXT.ArrowXml a => String -> a HXT.XmlTree HXT.XmlTree
 isDSElem n = HXT.isElem HXT.>>> HXT.hasQName (mkNName ns n)
@@ -71,14 +90,11 @@ applyTransformsXML tl = applyTransformsBytes tl . DOM.xshowBlob . return
 applyTransforms :: Maybe Transforms -> HXT.XmlTree -> IO BSL.ByteString
 applyTransforms = applyTransformsXML . maybe [] (NonEmpty.toList . transforms)
 
-asType :: a -> proxy a -> proxy a
-asType _ = id
-
 applyDigest :: DigestMethod -> BSL.ByteString -> BS.ByteString
-applyDigest (DigestMethod (Identified DigestSHA1) []) = BA.convert . asType SHA1 . hashlazy
-applyDigest (DigestMethod (Identified DigestSHA256) []) = BA.convert . asType SHA256 . hashlazy
-applyDigest (DigestMethod (Identified DigestSHA512) []) = BA.convert . asType SHA512 . hashlazy
-applyDigest (DigestMethod (Identified DigestRIPEMD160) []) = BA.convert . asType RIPEMD160 . hashlazy
+applyDigest (DigestMethod (Identified DigestSHA1) []) = BA.convert . hashlazy @SHA1
+applyDigest (DigestMethod (Identified DigestSHA256) []) = BA.convert . hashlazy @SHA256
+applyDigest (DigestMethod (Identified DigestSHA512) []) = BA.convert . hashlazy @SHA512
+applyDigest (DigestMethod (Identified DigestRIPEMD160) []) = BA.convert . hashlazy @RIPEMD160
 applyDigest d = error $ "unsupported " ++ show d
 
 generateReference :: Reference -> HXT.XmlTree -> IO Reference
@@ -88,13 +104,22 @@ generateReference r x = do
   return r
     { referenceDigestValue = d }
 
-verifyReference :: Reference -> HXT.XmlTree -> IO (Maybe String)
+-- | Re-compute the digest (after transforms) of a 'Reference'd subtree of an xml document and
+-- compare it against the one given in the 'Reference'.  If it matches, return the xml ID;
+-- otherwise, return an error string.
+verifyReference :: HasCallStack => Reference -> HXT.XmlTree -> IO (Either String String)
 verifyReference r doc = case referenceURI r of
-  Just URI{ uriScheme = "", uriAuthority = Nothing, uriPath = "", uriQuery = "", uriFragment = '#':xid }
-    | x@[_] <- HXT.runLA (getID xid) doc -> do
-    t <- applyTransforms (referenceTransforms r) $ DOM.mkRoot [] x
-    return $ xid <$ guard (applyDigest (referenceDigestMethod r) t == referenceDigestValue r)
-  _ -> return Nothing
+  Just URI{ uriScheme = "", uriAuthority = Nothing, uriPath = "", uriQuery = "", uriFragment = '#':xid } ->
+    case HXT.runLA (getID xid) doc of
+      x@[_] -> do
+        t :: LBS <- applyTransforms (referenceTransforms r) $ DOM.mkRoot [] x
+        let have = applyDigest (referenceDigestMethod r) t
+            want = referenceDigestValue r
+        return $ if have == want
+          then Right xid
+          else Left $ "#" <> xid <> ": digest mismatch"
+      bad -> return . Left $ "#" <> xid <> ": has " <> show (length bad) <> " matches, should have 1."
+  bad -> return . Left $ "unexpected referenceURI: " <> show bad
 
 data SigningKey
   = SigningKeyDSA DSA.KeyPair
@@ -113,8 +138,7 @@ instance Semigroup PublicKeys where
 #endif
 instance Monoid PublicKeys where
   mempty = PublicKeys Nothing Nothing
-  PublicKeys dsa1 rsa1 `mappend` PublicKeys dsa2 rsa2 =
-    PublicKeys (dsa1 <|> dsa2) (rsa1 <|> rsa2)
+  mappend = (<>)
 
 signingKeySignatureAlgorithm :: SigningKey -> SignatureAlgorithm
 signingKeySignatureAlgorithm (SigningKeyDSA _) = SignatureDSA_SHA1
@@ -187,12 +211,14 @@ generateSignature sk si = do
     , signatureObject = []
     }
 
+-- deprecated!  use 'verifySignature' instead.  this is left here so it can be used for testing only.
+--
 -- Exception in IO:  something is syntactically wrong with the input
 -- Nothing:          no matching key/alg pairs found
--- Just False:       signature verification failed || dangling refs || explicit ref is not among the signed ones
+-- Just False:       signature verification failed || bad refs || explicit ref is not among the signed ones
 -- Just True:        everything is ok!
-verifySignature :: PublicKeys -> String -> HXT.XmlTree -> IO (Maybe Bool)
-verifySignature pks xid doc = do
+verifySignatureOld :: PublicKeys -> String -> HXT.XmlTree -> IO (Maybe Bool)
+verifySignatureOld pks xid doc = do
   let namespaces = DOM.toNsEnv $ HXT.runLA HXT.collectNamespaceDecl doc
   x <- case HXT.runLA (getID xid HXT.>>> HXT.attachNsEnv namespaces) doc of
     [x] -> return x
@@ -206,7 +232,7 @@ verifySignature pks xid doc = do
   let verified :: Maybe Bool
       verified = verifyBytes pks (signatureMethodAlgorithm $ signedInfoSignatureMethod si) (signatureValue $ signatureSignatureValue s) six
       valid :: Bool
-      valid = elem (Just xid) rl && all isJust rl
+      valid = elem (Right xid) rl && all isRight rl
   return $ (valid &&) <$> verified
   where
   child n = HXT.runLA $ HXT.getChildren HXT.>>> isDSElem n HXT.>>> HXT.cleanupNamespaces HXT.collectPrefixUriPairs
@@ -221,3 +247,149 @@ verifySignature pks xid doc = do
   xpathsel t = "/*[local-name()='" ++ t ++ "' and namespace-uri()='" ++ namespaceURIString ns ++ "']"
   xpathbase = "/*" ++ xpathsel "Signature" ++ xpathsel "SignedInfo" ++ "//"
   xpath = xpathbase ++ ". | " ++ xpathbase ++ "@* | " ++ xpathbase ++ "namespace::*"
+
+-- | It turns out sometimes we don't get envelopped signatures, but signatures that are
+-- located outside the signed sub-tree.  Since 'verifySiganture' doesn't support this case, if
+-- you encounter it you should fall back to 'verifySignatureLegacy'.
+verifySignatureLegacy :: PublicKeys -> String -> HXT.XmlTree -> IO (Either SignatureError ())
+verifySignatureLegacy pks xid doc = catchAll $ warpResult <$> verifySignatureOld pks xid doc
+  where
+    catchAll :: IO (Either SignatureError ()) -> IO (Either SignatureError ())
+    catchAll = handle $ pure . Left . SignatureVerificationLegacyFailure . Left . (show @SomeException)
+
+    warpResult (Just True) = Right ()
+    warpResult bad = Left (SignatureVerificationLegacyFailure (Right bad))
+
+-- | Incomoplete!  Consider using 'verifySigantureLegacy' instead!
+--
+-- take a public key and an xml node ID that points to the sub-tree that needs to be signed, and
+-- return @Right ()@ if it is signed with that key.  otherwise, return a (hopefully helpful) error.
+-- use this if you want to verify signatures, and ignore the rest of this module if you can.
+--
+-- how does this work?:
+--   * dig for the subtree of the input with an ID attribute containing xid (the "signed subtree")
+--   * parse the 'Signature' subtree in that subtree (we only do envelopped signatures)
+--   * get the canonicalized 'SignedInfo' subtree of the signed subtree as bytestring.
+--   * call 'verifyReference' on all 'Reference's contained in the parsed signature to make sure input is intact.
+--   * call 'verifyBytes' on the canonicalized 'SignedInfo' to make sure the signature is valid.
+--
+-- the canonicalizations given in the signature are applied to the signed info; the transforms
+-- are applied to the signed subtrees.  (this is confusing because one of the transforms is
+-- usually a form of canonicalization, but it makes sense if you accept the premise that any
+-- of this does.)
+verifySignatureIncomplete :: PublicKeys -> String -> HXT.XmlTree -> IO (Either SignatureError ())
+verifySignatureIncomplete pks xid doc = runExceptT $ do
+  signedSubtree :: HXT.XmlTree
+    <- failWith SignatureParseError
+      $ getSubtreeWithNamespaces xid doc
+
+  signatureElem@Signature{ signatureSignedInfo = signedInfoTyped } :: Signature
+    <- do
+        sx :: HXT.XmlTree
+          <- let child n = HXT.runLA $ HXT.getChildren HXT.>>> isDSElem n HXT.>>> HXT.cleanupNamespaces HXT.collectPrefixUriPairs
+             in case child "Signature" signedSubtree of
+            [sx] -> return sx
+            _ -> throwError SignatureNotFoundOrEmpty
+
+        case docToSAML sx of
+          Left err -> throwError . SignatureParseError $ show err
+          Right v -> pure v
+
+  -- validate the hashes
+  -- (this only works if reference list contains xid and nothing else.)
+  referenceChecks :: NonEmpty.NonEmpty (Either String String)
+    <- failWith (SignatureVerifyReferenceError . (show (signedInfoReference signedInfoTyped) <>))
+      . capture' "verifyReference"
+      $ mapM (`verifyReference` signedSubtree) (signedInfoReference signedInfoTyped)
+
+  -- all signed subtrees have valid hashes
+  unless (all isRight referenceChecks) $
+    throwError . SignatureVerifyBadReferences $ (show . lefts . NonEmpty.toList $ referenceChecks)
+  -- the subtree we are interested in is among the signed subtrees
+  unless (elem (Right xid) referenceChecks) $
+    throwError . SignatureVerifyInputNotReferenced $ show referenceChecks
+
+  signedInfoElem :: BS.ByteString
+    <- let xpath = mkXPath xpathbase
+             where
+               xpathsel t = "/*[local-name()='" ++ t ++ "' and namespace-uri()='" ++ namespaceURIString ns ++ "']"
+               xpathbase = "/*" ++ xpathsel "Signature" ++ xpathsel "SignedInfo"
+       in failWith SignatureCanonicalizationError
+          . capture' "applyCanonicalization"
+          $ (applyCanonicalization (signedInfoCanonicalizationMethod signedInfoTyped) (Just xpath) $ DOM.mkRoot [] [signedSubtree])
+
+  do
+    let keys :: PublicKeys
+        keys = pks <> foldMap (foldMap keyinfo . keyInfoElements) (signatureKeyInfo signatureElem)
+          where
+            keyinfo (KeyInfoKeyValue kv) = publicKeyValues kv
+            keyinfo (X509Data l) = foldMap keyx509d l
+              where
+                keyx509d (X509Certificate sc) = keyx509p $ X509.certPubKey $ X509.getCertificate sc
+                keyx509d _ = mempty
+                keyx509p (X509.PubKeyRSA r) = mempty{ publicKeyRSA = Just r }
+                keyx509p (X509.PubKeyDSA d) = mempty{ publicKeyDSA = Just d }
+                keyx509p _ = mempty
+            keyinfo _ = mempty
+
+        alg :: IdentifiedURI SignatureAlgorithm
+        alg = signatureMethodAlgorithm $ signedInfoSignatureMethod signedInfoTyped
+
+        dig :: Base64Binary
+        dig = signatureValue $ signatureSignatureValue signatureElem
+
+    -- validate the signature
+    case verifyBytes keys alg dig signedInfoElem of
+      Nothing    -> throwError . SignatureVerificationCryptoUnsupported $ show (keys, alg, dig, signedInfoElem)
+      Just False -> throwError . SignatureVerificationCryptoFailed      $ show (keys, alg, dig, signedInfoElem)
+      Just True  -> pure ()
+
+
+-- | if name spaces that are declared in doc and used in the signed subtree, we need to copy
+-- the declarations into the part the subtree to make it self-contained.  the easiest way to
+-- implement that is to use a xml:dsig canonicalization function and do another round of
+-- rendering and parsing.
+--
+-- TODO: there may be a cleaner way to do this.  i know that xml-conduit isn't very interested
+-- in getting name spaces right, and HXT doesn't seem to be very successful at it either, but
+-- it may just be that i'm unaware of the regions of the HXT jungle that do this.
+getSubtreeWithNamespaces :: HasCallStack => String -> HXT.XmlTree -> IO HXT.XmlTree
+getSubtreeWithNamespaces xid doc = do
+  let xpath = mkXPath $ "//*[@ID=" <> show xid <> "]"
+  can :: SBS
+    <- liftIO . capture' "fixNamespaces" $
+       canonicalize (CanonicalXMLExcl10 True) Nothing (Just xpath) $ DOM.mkRoot [] [doc]
+  maybe (throwIO . ErrorCall $ "parse error on canonicalized xml") pure $
+    xmlToDoc (cs can)
+
+-- | Capture stdout, stderr to a temp file, and throw an IO error if that file is non-empty.
+capture' :: String -> IO a -> IO a
+capture' actionName action = hCapture [stdout, stderr] action >>= \case
+  ("", !out) -> pure out
+  (noise@(_:_), _) -> throwIO . ErrorCall $ actionName <> ": " <> noise
+
+-- | Takes an xpath that works on https://codebeautify.org/Xpath-Tester, but only returns the
+-- empty tag stripped of all attributes and children here, and returns an xpath that does what
+-- you'd expect.
+--
+-- Anybody: if you know more about the why, please elaborate.
+mkXPath :: String -> String
+mkXPath xpathbase = intercalate " | " ((xpathbase <>) <$> ["//.", "//@*", "//namespace::*"])
+
+
+data SignatureError =
+    SignedElementNotFound
+  | SignatureNotFoundOrEmpty
+  | SignatureParseError String
+  | SignatureCanonicalizationError String
+  | SignatureVerifyReferenceError String
+  | SignatureVerifyBadReferences String
+  | SignatureVerifyInputNotReferenced String
+  | SignatureVerificationCryptoUnsupported String
+  | SignatureVerificationCryptoFailed String
+  | SignatureVerificationLegacyFailure (Either String (Maybe Bool))
+  deriving (Eq, Show)
+
+failWith :: forall m a. (MonadIO m, MonadError SignatureError m)
+         => (String -> SignatureError) -> IO a -> m a
+failWith mkerr action = either (throwError . mkerr . show) pure =<< liftIO (try @SomeException action)

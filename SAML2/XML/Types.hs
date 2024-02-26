@@ -1,4 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 module SAML2.XML.Types where
 
 import Data.List.NonEmpty (NonEmpty(..))
