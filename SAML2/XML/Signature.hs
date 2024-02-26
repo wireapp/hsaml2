@@ -26,12 +26,10 @@ module SAML2.XML.Signature
   ) where
 
 import GHC.Stack
-import Control.Exception (handle)
 import System.IO.Silently (hCapture)
 import System.IO (stdout, stderr)
 import Control.Applicative ((<|>))
-import Control.Exception (SomeException, try, throwIO, ErrorCall(ErrorCall))
-import Control.Monad ((<=<))
+import Control.Exception (SomeException, try, throwIO, ErrorCall(ErrorCall), handle)
 import Control.Monad.Except
 import Crypto.Number.Basic (numBytes)
 import Crypto.Number.Serialize (i2ospOf_, os2ip)
@@ -46,9 +44,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Either (isRight, lefts)
 import Data.List (intercalate)
-import Data.Semigroup (Semigroup(..))
 import Data.String.Conversions hiding ((<>))
-import Data.Monoid (Monoid(..))
 import qualified Data.X509 as X509
 import Network.URI (URI(..))
 import qualified Text.XML.HXT.Core as HXT
@@ -236,14 +232,6 @@ verifySignatureOld pks xid doc = do
   return $ (valid &&) <$> verified
   where
   child n = HXT.runLA $ HXT.getChildren HXT.>>> isDSElem n HXT.>>> HXT.cleanupNamespaces HXT.collectPrefixUriPairs
-  keyinfo (KeyInfoKeyValue kv) = publicKeyValues kv
-  keyinfo (X509Data l) = foldMap keyx509d l
-  keyinfo _ = mempty
-  keyx509d (X509Certificate sc) = keyx509p $ X509.certPubKey $ X509.getCertificate sc
-  keyx509d _ = mempty
-  keyx509p (X509.PubKeyRSA r) = mempty{ publicKeyRSA = Just r }
-  keyx509p (X509.PubKeyDSA d) = mempty{ publicKeyDSA = Just d }
-  keyx509p _ = mempty
   xpathsel t = "/*[local-name()='" ++ t ++ "' and namespace-uri()='" ++ namespaceURIString ns ++ "']"
   xpathbase = "/*" ++ xpathsel "Signature" ++ xpathsel "SignedInfo" ++ "//"
   xpath = xpathbase ++ ". | " ++ xpathbase ++ "@* | " ++ xpathbase ++ "namespace::*"

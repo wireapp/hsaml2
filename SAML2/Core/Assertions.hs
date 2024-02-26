@@ -5,7 +5,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 -- |
 -- SAML Assertions
@@ -13,7 +12,6 @@
 -- <https://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf saml-core-2.0-os> §2
 module SAML2.Core.Assertions where
 
-import Data.Semigroup (Semigroup)
 import SAML2.Core.Identifiers
 import SAML2.Core.Namespaces
 import SAML2.Core.Versioning

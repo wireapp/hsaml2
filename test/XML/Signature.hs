@@ -2,12 +2,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
+
 module XML.Signature (tests) where
 
 import Control.Exception (SomeException, try)
 import Control.Monad
 import Data.ByteString.Base64
 import Data.Either (isLeft)
+import Data.Maybe (fromMaybe)
 import Data.List (isInfixOf)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.String.Conversions
@@ -15,7 +18,6 @@ import Data.Time
 import qualified Data.X509 as X509
 import GHC.Stack
 
-import qualified Crypto.PubKey.DSA as DSA
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.ByteString.Lazy as BSL
@@ -323,7 +325,7 @@ canonicalizeCounterExample base64input = do
       inbs = either (error "badcase") cs $ Data.ByteString.Base64.decode base64input
 
       tree :: XmlTree
-      tree = maybe (error "badcase") id $ HS.xmlToDoc inbs
+      tree = fromMaybe (error "badcase") $ HS.xmlToDoc inbs
 
       algo :: CanonicalizationAlgorithm
       algo = CanonicalXMLExcl10 {canonicalWithComments = True}

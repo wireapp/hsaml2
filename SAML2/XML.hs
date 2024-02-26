@@ -17,10 +17,12 @@ module SAML2.XML
   , xpIdentified
   , xpIdentifier
   , IdentifiedURI
-  , samlToDoc, samlToDoc'
+  , samlToDoc
+  , samlToDoc'
   , samlToXML
   , docToSAML
-  , docToXML, docToXML'
+  , docToXML
+  , docToXML'
   , xmlToSAML
   , xmlToDoc
   , xmlToDocE

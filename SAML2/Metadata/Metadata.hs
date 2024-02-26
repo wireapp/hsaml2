@@ -4,7 +4,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 -- |
 -- Metadata for SAML V2.0
@@ -13,7 +12,6 @@
 module SAML2.Metadata.Metadata where
 
 import Data.Foldable (fold)
-import Data.Semigroup (Semigroup)
 import qualified Network.URI as URI
 import qualified Text.XML.HXT.Arrow.Pickle.Schema as XPS
 
@@ -29,13 +27,6 @@ import qualified SAML2.Core.Assertions as SAML
 import SAML2.Core.Identifiers
 import SAML2.Core.Namespaces
 import SAML2.Core.Versioning
-import SAML2.Lens
-import SAML2.XML
-import qualified SAML2.XML.Encryption as XEnc
-import qualified SAML2.XML.Schema as XS
-import qualified SAML2.XML.Signature.Types as DS
-import qualified Text.XML.HXT.Arrow.Pickle.Schema as XPS
-import qualified Text.XML.HXT.Arrow.Pickle.Xml.Invertible as XP
 
 ns :: Namespace
 ns = mkNamespace "md" $ samlURN SAML20 ["metadata"]
