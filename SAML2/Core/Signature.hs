@@ -6,7 +6,7 @@
 module SAML2.Core.Signature
   ( signSAMLProtocol
   , verifySAMLProtocol
-  , verifySAMLProtocol'
+  , verifySAMLProtocolWithKeys
   ) where
 
 import Control.Lens ((^.), (?~))
@@ -58,10 +58,8 @@ verifySAMLProtocol b = do
 
 -- | A variant of 'verifySAMLProtocol' that is more symmetric to 'signSAMLProtocol'.  The reason it
 -- takes an 'XmlTree' and not an @a@ is that signature verification needs both.
---
--- TODO: Should this replace 'verifySAMLProtocol'?
-verifySAMLProtocol' :: SAMLP.SAMLProtocol a => DS.PublicKeys -> XmlTree -> IO a
-verifySAMLProtocol' pubkeys x = do
+verifySAMLProtocolWithKeys :: SAMLP.SAMLProtocol a => DS.PublicKeys -> XmlTree -> IO a
+verifySAMLProtocolWithKeys pubkeys x = do
   m <- either fail return $ docToSAML x
   v <- DS.verifySignatureLegacy pubkeys (DS.signedID m) x
   either (fail . show) (const $ pure m) v

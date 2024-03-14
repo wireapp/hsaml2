@@ -18,7 +18,7 @@ module SAML2.XML
   , xpIdentifier
   , IdentifiedURI
   , samlToDoc
-  , samlToDoc'
+  , samlToDocFirstChild
   , samlToXML
   , docToSAML
   , docToXML
@@ -98,14 +98,14 @@ type IdentifiedURI = Identified URI
 instance Identifiable URI a => XP.XmlPickler (Identified URI a) where
   xpickle = xpIdentified XS.xpAnyURI
 
-
 samlToDoc :: XP.XmlPickler a => a -> HXT.XmlTree
 samlToDoc = head
   . HXT.runLA (HXT.processChildren $ HXT.cleanupNamespaces HXT.collectPrefixUriPairs)
   . XP.pickleDoc XP.xpickle
 
-samlToDoc' :: XP.XmlPickler a => a -> HXT.XmlTree
-samlToDoc' = head . getChildren . head
+-- | From the input xml forest, take the first child of the first tree.
+samlToDocFirstChild :: XP.XmlPickler a => a -> HXT.XmlTree
+samlToDocFirstChild = head . getChildren . head
   . HXT.runLA (HXT.processChildren $ HXT.cleanupNamespaces HXT.collectPrefixUriPairs)
   . XP.pickleDoc XP.xpickle
 
@@ -116,9 +116,6 @@ docToXML =  BSL.concat . HXT.runLA (HXT.xshowBlob HXT.getChildren)
 -- | 'docToXML' chops off the root element from the tree.  'docToXML'' does not do this.  it may
 -- make sense to remove 'docToXML', but since i don't understand this code enough to be confident
 -- not to break anything, i'll just leave this extra function for reference.
---
--- TODO: replace docToXML with this.  write test cases for every replacement to make sure it's
--- what we want.
 docToXML' :: HXT.XmlTree -> BSL.ByteString
 docToXML' = Text.XML.HXT.DOM.ShowXml.xshowBlob . (:[])
 

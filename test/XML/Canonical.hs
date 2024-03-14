@@ -27,7 +27,7 @@ testIdempotency algo input = U.TestCase $ do
   U.assertBool (show algo ++ "[2] " ++ input) (go input == (go >=> go) input)
  where
   go :: String -> Either String String
-  go = fmap (cs . unsafePerformIO . canonicalize' algo Nothing Nothing . (: [])) . xmlToDocE . cs
+  go = fmap (cs . unsafePerformIO . canonicalizeWithRoot algo Nothing Nothing . (: [])) . xmlToDocE . cs
 
 tests :: U.Test
 tests = U.test

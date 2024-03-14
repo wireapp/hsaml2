@@ -197,38 +197,38 @@ signVerifyTests = U.test
   [ U.TestCase $ do
       let req = somereq
       req' <- signSAMLProtocol privkey1 req
-      let reqdoc = samlToDoc' req'
-      req'' :: AuthnRequest <- verifySAMLProtocol' pubkey1 reqdoc
-      U.assertEqual "AuthnRequest with verifySAMLProtocol' (matching pubkeys)" req' req''
+      let reqdoc = samlToDocFirstChild req'
+      req'' :: AuthnRequest <- verifySAMLProtocolWithKeys pubkey1 reqdoc
+      U.assertEqual "AuthnRequest with verifySAMLProtocolWithKeys (matching pubkeys)" req' req''
 
   , U.TestCase $ do
       let req = somereq
       req' <- signSAMLProtocol privkeyRsa req
       let reqdoc = samlToDoc req'
-      req'' :: Either SomeException AuthnRequest <- try $ verifySAMLProtocol' pubkey1 reqdoc
-      U.assertBool "AuthnRequest with verifySAMLProtocol' (bad pubkeys): isLeft"
+      req'' :: Either SomeException AuthnRequest <- try $ verifySAMLProtocolWithKeys pubkey1 reqdoc
+      U.assertBool "AuthnRequest with verifySAMLProtocolWithKeys (bad pubkeys): isLeft"
         $ isLeft req''
-      U.assertBool "AuthnRequest with verifySAMLProtocol' (bad pubkeys): error message matches"
+      U.assertBool "AuthnRequest with verifySAMLProtocolWithKeys (bad pubkeys): error message matches"
         $ "(SignatureVerificationLegacyFailure (Right Nothing))" `isInfixOf` show req''
 
   , U.TestCase $ do
       let req = somereq
       req' <- signSAMLProtocol privkeyRsa req
       let reqdoc = samlToDoc req'
-      req'' :: Either SomeException AuthnRequest <- try $ verifySAMLProtocol' (pubkey1 <> dummyPubkeyRSA) reqdoc
-      U.assertBool "AuthnRequest with verifySAMLProtocol' (bad pubkeys): isLeft"
+      req'' :: Either SomeException AuthnRequest <- try $ verifySAMLProtocolWithKeys (pubkey1 <> dummyPubkeyRSA) reqdoc
+      U.assertBool "AuthnRequest with verifySAMLProtocolWithKeys (bad pubkeys): isLeft"
         $ isLeft req''
-      U.assertBool "AuthnRequest with verifySAMLProtocol' (bad pubkeys): error message matches"
+      U.assertBool "AuthnRequest with verifySAMLProtocolWithKeys (bad pubkeys): error message matches"
         $ "(SignatureVerificationLegacyFailure (Right (Just False)))" `isInfixOf` show req''
 
   , U.TestCase $ do
       let req = somereq
       req' <- signSAMLProtocol privkey1 req
-      let reqdoc = samlToDoc' req'
-      req'' :: Either SomeException AuthnRequest <- try $ verifySAMLProtocol' pubkey2 reqdoc
-      U.assertBool "AuthnRequest with verifySAMLProtocol' (bad pubkeys)" 
+      let reqdoc = samlToDocFirstChild req'
+      req'' :: Either SomeException AuthnRequest <- try $ verifySAMLProtocolWithKeys pubkey2 reqdoc
+      U.assertBool "AuthnRequest with verifySAMLProtocolWithKeys (bad pubkeys)" 
         $ isLeft req''
-      U.assertBool "AuthnRequest with verifySAMLProtocol' (bad pubkeys): error message matches" 
+      U.assertBool "AuthnRequest with verifySAMLProtocolWithKeys (bad pubkeys): error message matches" 
         $ "(SignatureVerificationLegacyFailure (Right (Just False)))" `isInfixOf` show req''
   ]
 
