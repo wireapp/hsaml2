@@ -19,7 +19,7 @@ module SAML2.XML.Signature
   , signBase64
   , verifyBase64
   , generateSignature
-  , verifySignatureLegacy
+  , verifySignatureUnenvelopedSigs
   , applyCanonicalization
   , applyTransforms
   ) where
@@ -189,8 +189,8 @@ generateSignature sk si = do
 -- Nothing:          no matching key/alg pairs found
 -- Just False:       signature verification failed || dangling refs || explicit ref is not among the signed ones
 -- Just True:        everything is ok!
-verifySignatureOld :: PublicKeys -> String -> HXT.XmlTree -> IO (Maybe Bool)
-verifySignatureOld pks xid doc = do
+verifySignature :: PublicKeys -> String -> HXT.XmlTree -> IO (Maybe Bool)
+verifySignature pks xid doc = do
   let namespaces = DOM.toNsEnv $ HXT.runLA HXT.collectNamespaceDecl doc
   x <- case HXT.runLA (getID xid HXT.>>> HXT.attachNsEnv namespaces) doc of
     [x] -> return x
@@ -215,9 +215,9 @@ verifySignatureOld pks xid doc = do
 
 -- | It turns out sometimes we don't get envelopped signatures, but signatures that are
 -- located outside the signed sub-tree.  Since 'verifySiganture' doesn't support this case, if
--- you encounter it you should fall back to 'verifySignatureLegacy'.
-verifySignatureLegacy :: PublicKeys -> String -> HXT.XmlTree -> IO (Either SignatureError ())
-verifySignatureLegacy pks xid doc = catchAll $ warpResult <$> verifySignatureOld pks xid doc
+-- you encounter it you should fall back to 'verifySignatureUnenvelopedSigs'.
+verifySignatureUnenvelopedSigs :: PublicKeys -> String -> HXT.XmlTree -> IO (Either SignatureError ())
+verifySignatureUnenvelopedSigs pks xid doc = catchAll $ warpResult <$> verifySignature pks xid doc
   where
     catchAll :: IO (Either SignatureError ()) -> IO (Either SignatureError ())
     catchAll = handle $ pure . Left . SignatureVerificationLegacyFailure . Left . (show @SomeException)

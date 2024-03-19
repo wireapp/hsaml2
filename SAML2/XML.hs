@@ -126,7 +126,7 @@ xmlToDoc :: BSL.ByteString -> Maybe HXT.XmlTree
 xmlToDoc = either (const Nothing) Just . xmlToDocE
 
 xmlToDocE :: BSL.ByteString -> Either String HXT.XmlTree
-xmlToDocE = fix . xmlToDocBroken
+xmlToDocE = fix . xmlToDocUnsafe
   where
     fix Nothing =
       Left "Nothing"
@@ -135,10 +135,10 @@ xmlToDocE = fix . xmlToDocBroken
     fix (Just good) =
       Right good
 
--- | Take a UTF-8 encoded bytestring and return an xml tree.  This is broken and returns xml
+-- | Take a UTF-8 encoded bytestring and return an xml tree.  This is unsafe and returns xml
 -- trees containing parse errors on occasion; call 'xmlToDocE' instead.
-xmlToDocBroken :: BSL.ByteString -> Maybe HXT.XmlTree
-xmlToDocBroken = listToMaybe . HXT.runLA
+xmlToDocUnsafe :: BSL.ByteString -> Maybe HXT.XmlTree
+xmlToDocUnsafe = listToMaybe . HXT.runLA
   (HXT.xreadDoc
   HXT.>>> HXT.removeWhiteSpace
   HXT.>>> HXT.neg HXT.isXmlPi
