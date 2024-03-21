@@ -21,8 +21,8 @@ module SAML2.XML
   , samlToDocFirstChild
   , samlToXML
   , docToSAML
-  , docToXML
-  , docToXML'
+  , docToXMLWithoutRoot
+  , docToXMLWithRoot
   , xmlToSAML
   , xmlToDoc
   , xmlToDocE
@@ -35,7 +35,7 @@ import qualified Data.Invertible as Inv
 import Data.Maybe (listToMaybe)
 import Network.URI (URI)
 import qualified Text.XML.HXT.Core as HXT
-import qualified Text.XML.HXT.DOM.ShowXml 
+import qualified Text.XML.HXT.DOM.ShowXml
 import Text.XML.HXT.DOM.XmlNode (getChildren)
 import qualified Data.Tree.NTree.TypeDefs as HXT
 
@@ -109,18 +109,19 @@ samlToDocFirstChild = head . getChildren . head
   . HXT.runLA (HXT.processChildren $ HXT.cleanupNamespaces HXT.collectPrefixUriPairs)
   . XP.pickleDoc XP.xpickle
 
--- | see 'docToXML''
-docToXML :: HXT.XmlTree -> BSL.ByteString
-docToXML =  BSL.concat . HXT.runLA (HXT.xshowBlob HXT.getChildren)
+-- | see also 'docToXMLWithRoot'
+docToXMLWithoutRoot :: HXT.XmlTree -> BSL.ByteString
+docToXMLWithoutRoot =  BSL.concat . HXT.runLA (HXT.xshowBlob HXT.getChildren)
 
--- | 'docToXML' chops off the root element from the tree.  'docToXML'' does not do this.  it may
--- make sense to remove 'docToXML', but since i don't understand this code enough to be confident
--- not to break anything, i'll just leave this extra function for reference.
-docToXML' :: HXT.XmlTree -> BSL.ByteString
-docToXML' = Text.XML.HXT.DOM.ShowXml.xshowBlob . (:[])
+-- | 'docToXML' chops off the root element from the tree.  'docToXMLWithRoot' does not do
+-- this.  it may make sense to remove 'docToXMLWithoutRoot', but since i don't understand this
+-- code enough to be confident not to break anything, i'll just leave this extra function for
+-- reference.
+docToXMLWithRoot :: HXT.XmlTree -> BSL.ByteString
+docToXMLWithRoot = Text.XML.HXT.DOM.ShowXml.xshowBlob . (:[])
 
 samlToXML :: XP.XmlPickler a => a -> BSL.ByteString
-samlToXML = docToXML . samlToDoc
+samlToXML = docToXMLWithoutRoot . samlToDoc
 
 xmlToDoc :: BSL.ByteString -> Maybe HXT.XmlTree
 xmlToDoc = either (const Nothing) Just . xmlToDocE
