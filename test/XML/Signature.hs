@@ -14,7 +14,6 @@ import Data.Either (isLeft)
 import Data.List (isInfixOf)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (fromMaybe)
-import Data.String.Conversions
 import Data.Time
 import qualified Data.X509 as X509
 import GHC.Stack
@@ -226,9 +225,9 @@ signVerifyTests = U.test
       req' <- signSAMLProtocol privkey1 req
       let reqdoc = samlToDocFirstChild req'
       req'' :: Either SomeException AuthnRequest <- try $ verifySAMLProtocolWithKeys pubkey2 reqdoc
-      U.assertBool "AuthnRequest with verifySAMLProtocolWithKeys (bad pubkeys)" 
+      U.assertBool "AuthnRequest with verifySAMLProtocolWithKeys (bad pubkeys)"
         $ isLeft req''
-      U.assertBool "AuthnRequest with verifySAMLProtocolWithKeys (bad pubkeys): error message matches" 
+      U.assertBool "AuthnRequest with verifySAMLProtocolWithKeys (bad pubkeys): error message matches"
         $ "(SignatureVerificationLegacyFailure (Right (Just False)))" `isInfixOf` show req''
   ]
 
@@ -322,10 +321,10 @@ counterExamples = U.test
       U.assertEqual "canoncalization broke the input" i o
   ]
 
-canonicalizeCounterExample :: HasCallStack => BS.ByteString -> IO (LBS, LBS)
+canonicalizeCounterExample :: HasCallStack => BS.ByteString -> IO (LBS.ByteString, LBS.ByteString)
 canonicalizeCounterExample base64input = do
   let inbs :: LBS.ByteString
-      inbs = either (error "badcase") cs $ Data.ByteString.Base64.decode base64input
+      inbs = either (error "badcase") BS.fromStrict $ Data.ByteString.Base64.decode base64input
 
       tree :: XmlTree
       tree = fromMaybe (error "badcase") $ HS.xmlToDoc inbs
@@ -333,6 +332,6 @@ canonicalizeCounterExample base64input = do
       algo :: CanonicalizationAlgorithm
       algo = CanonicalXMLExcl10 {canonicalWithComments = True}
 
-  outbs :: LBS.ByteString <- cs <$> canonicalize algo Nothing Nothing (NTree (XTag (mkQName "" "" "root") []) [tree])
+  outbs :: LBS.ByteString <- BS.fromStrict <$> canonicalize algo Nothing Nothing (NTree (XTag (mkQName "" "" "root") []) [tree])
 
   pure (inbs, outbs)

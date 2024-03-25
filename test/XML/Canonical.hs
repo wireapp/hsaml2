@@ -2,18 +2,19 @@
 module XML.Canonical (tests) where
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.UTF8 as BSU
+import qualified Data.ByteString.Lazy.UTF8 as BSLU
 import qualified Test.HUnit as U
 import qualified Text.XML.HXT.Core as HXT
 import System.IO.Unsafe (unsafePerformIO)
 
 import Control.Monad
 import Data.Either (isRight)
-import Data.String.Conversions (cs)
 import SAML2.XML
 import SAML2.XML.Canonical
 
 canonicalizeXML :: CanonicalizationAlgorithm -> String -> Bool -> IO [BS.ByteString]
-canonicalizeXML algo f ent = HXT.runX 
+canonicalizeXML algo f ent = HXT.runX
   (HXT.readDocument [HXT.withCheckNamespaces HXT.yes, HXT.withValidate HXT.no, HXT.withCanonicalize HXT.no, HXT.withSubstDTDEntities ent] f
   HXT.>>> HXT.arrIO (canonicalize algo Nothing Nothing))
 
@@ -27,7 +28,7 @@ testIdempotency algo input = U.TestCase $ do
   U.assertBool (show algo ++ "[2] " ++ input) (go input == (go >=> go) input)
  where
   go :: String -> Either String String
-  go = fmap (cs . unsafePerformIO . canonicalizeWithRoot algo Nothing Nothing . (: [])) . xmlToDocE . cs
+  go = fmap (BSU.toString . unsafePerformIO . canonicalizeWithRoot algo Nothing Nothing . (: [])) . xmlToDocE . BSLU.fromString
 
 tests :: U.Test
 tests = U.test

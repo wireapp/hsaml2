@@ -39,7 +39,6 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Either (isRight)
-import Data.String.Conversions hiding ((<>))
 import Network.URI (URI(..))
 import qualified Text.XML.HXT.Core as HXT
 import qualified Text.XML.HXT.DOM.ShowXml as DOM
@@ -101,7 +100,7 @@ verifyReference r doc = case referenceURI r of
   Just URI{ uriScheme = "", uriAuthority = Nothing, uriPath = "", uriQuery = "", uriFragment = '#':xid } ->
     case HXT.runLA (getID xid) doc of
       x@[_] -> do
-        t :: LBS <- applyTransforms (referenceTransforms r) $ DOM.mkRoot [] x
+        t :: BSL.ByteString <- applyTransforms (referenceTransforms r) $ DOM.mkRoot [] x
         let have = applyDigest (referenceDigestMethod r) t
             want = referenceDigestValue r
         return $ if have == want
